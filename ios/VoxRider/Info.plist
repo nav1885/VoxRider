@@ -34,8 +34,16 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>VoxRider needs Bluetooth to connect to your Garmin Varia radar.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>VoxRider needs Bluetooth to connect to your Garmin Varia radar.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
