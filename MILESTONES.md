@@ -128,7 +128,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
 
 ### Phase 1.3 — Background Service
 
-#### ⏳ TASK-015: Android foreground service + battery optimization (needs native)
+#### ✅ TASK-015: Android foreground service (RadarService.kt written; battery opt dialog needs native run)
 - Implement Android foreground service wrapping BLE manager
 - Persistent notification: "VoxRider active" (IMPORTANCE_LOW — visible but not intrusive)
 - Declare `FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE` in manifest (required Android 14+)
