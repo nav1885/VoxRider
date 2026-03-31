@@ -62,6 +62,23 @@ export class TTSEngine {
     this._speak(message, trigger);
   }
 
+  /**
+   * Speak a message directly, bypassing the AlertEngine trigger system.
+   * Used for test alerts. Interrupts any current speech.
+   */
+  speakImmediate(message: string): void {
+    if (this.speaking) {
+      this.backend.stop();
+      this._clearWatchdog();
+      this.speaking = false;
+    }
+    this.speaking = true;
+    this._startWatchdog();
+    this.backend.speak(message, () => {
+      this._onFinished();
+    });
+  }
+
   /** Called when Android audio focus is lost — treat as implicit speech end */
   onAudioFocusLoss(): void {
     if (this.speaking) {

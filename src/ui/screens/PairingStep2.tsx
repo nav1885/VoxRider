@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import {DeviceInfo, IBLEManager} from '../../ble/types';
 import {Strings} from '../../constants/strings';
+import {useBluetoothPermission} from '../../permissions/useBluetoothPermission';
+import {PermissionBanner} from '../components/PermissionBanner';
 
 const SCAN_TIMEOUT_MS = 30000;
 
@@ -28,6 +30,7 @@ export function PairingStep2({bleManager, onConnected}: Props): React.JSX.Elemen
   const [connectError, setConnectError] = useState<string | null>(null);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const scanTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const {status: permissionStatus, request: requestPermission} = useBluetoothPermission();
 
   const startScan = () => {
     setScanState('scanning');
@@ -60,7 +63,11 @@ export function PairingStep2({bleManager, onConnected}: Props): React.JSX.Elemen
   };
 
   useEffect(() => {
-    startScan();
+    requestPermission().then(result => {
+      if (result === 'granted') {
+        startScan();
+      }
+    });
     return () => {
       if (scanTimeoutRef.current) {
         clearTimeout(scanTimeoutRef.current);
@@ -97,6 +104,12 @@ export function PairingStep2({bleManager, onConnected}: Props): React.JSX.Elemen
         <Text style={[styles.title, textStyle]} testID="step-title">
           {Strings.pairingStep2Title}
         </Text>
+
+        {/* Permission denied/blocked banner */}
+        <PermissionBanner
+          status={permissionStatus}
+          onRetry={() => requestPermission().then(r => { if (r === 'granted') { startScan(); } })}
+        />
 
         {/* Scanning state */}
         {scanState === 'scanning' && (

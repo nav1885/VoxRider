@@ -10,8 +10,15 @@ import {PairingStep2} from './src/ui/screens/PairingStep2';
 import {MainScreen} from './src/ui/screens/MainScreen';
 import {SettingsPanel} from './src/ui/screens/SettingsPanel';
 import {useSettingsStore} from './src/settings/settingsStore';
+import {useRadarStore} from './src/ble/radarStore';
 import {MockBLEManager} from './src/ble/MockBLEManager';
 import {DeviceInfo} from './src/ble/types';
+import {AlertEngine} from './src/alerts/AlertEngine';
+import {TTSEngine} from './src/alerts/TTSEngine';
+import {NoOpTTSBackend} from './src/alerts/NoOpTTSBackend';
+import {ConnectionAlertEngine} from './src/alerts/ConnectionAlertEngine';
+import {AlertVerbosity} from './src/alerts/types';
+import {Strings} from './src/constants/strings';
 
 export type RootStackParamList = {
   PairingStep1: undefined;
@@ -24,6 +31,26 @@ const Stack = createStackNavigator<RootStackParamList>();
 
 // Using MockBLEManager until RealBLEManager is implemented (M1 native tasks)
 const bleManager = new MockBLEManager();
+
+// Alert + TTS pipeline — NoOpTTSBackend until react-native-tts native integration (TASK-023)
+const ttsBackend = new NoOpTTSBackend();
+const alertEngine = new AlertEngine(() => {});
+const ttsEngine = new TTSEngine(ttsBackend, alertEngine, AlertVerbosity.Detailed);
+const connectionAlertEngine = new ConnectionAlertEngine(msg =>
+  ttsBackend.speak(msg, () => {}),
+);
+
+// Subscribe to radar store — drive alert + connection engines from BLE state
+useRadarStore.subscribe(state => {
+  ttsEngine.updateState(state.threats, state.connectionStatus);
+  alertEngine.evaluate(state.threats, state.connectionStatus);
+  connectionAlertEngine.onStatusChange(state.connectionStatus);
+});
+
+// Keep TTSEngine verbosity in sync with settings
+useSettingsStore.subscribe(state => {
+  ttsEngine.setVerbosity(state.verbosity);
+});
 
 export default function App(): React.JSX.Element {
   const isDark = useColorScheme() === 'dark';
@@ -76,9 +103,7 @@ export default function App(): React.JSX.Element {
               options={{gestureEnabled: false}}>
               {({navigation}) => (
                 <MainScreen
-                  onTestAlert={() => {
-                    // TTSEngine will be wired here in TASK-023 native integration
-                  }}
+                  onTestAlert={() => ttsEngine.speakImmediate(Strings.ttsTestAlert)}
                   onSwipeLeft={() => navigation.navigate('Settings')}
                 />
               )}

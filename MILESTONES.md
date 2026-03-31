@@ -334,7 +334,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
   - Device disappears from scan list after connect attempt → rescan automatically, stay on Step 2
   - 30s timeout with no devices → error message shown, "Try again" restarts scan
 
-#### ⏳ TASK-043: Android permissions flow
+#### ✅ TASK-043: Android permissions flow
 Request the correct BLE permissions based on Android API level at runtime.
 
 - **Android 12+ (API 31+):** Request `BLUETOOTH_SCAN` + `BLUETOOTH_CONNECT`
@@ -420,7 +420,7 @@ Request the correct BLE permissions based on Android API level at runtime.
 
 ### Phase 5.2 — Polish
 
-#### ⏳ TASK-053: Test Alert button (UI built, TTS not wired)
+#### ✅ TASK-053: Test Alert button
 - Tapping Test Alert fires TTS with a sample alert using current verbosity setting
 - Example: *"Test — 1 vehicle, high speed"*
 - Disabled if radar not connected
