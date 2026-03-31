@@ -96,7 +96,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
 
 ### Phase 1.2 — BLE Manager
 
-#### ⏳ TASK-012: BLE scan (needs native)
+#### ✅ TASK-012: BLE scan (RealBLEManager.scan() written; needs native to run)
 - Implement `RealBLEManager.scan()` using `react-native-ble-plx`
 - Filter for devices with `RTL` name prefix
 - Return discovered devices with name + RSSI (signal strength)
@@ -105,7 +105,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
 - **Test:** Integration test with `MockBLEManager` emitting fake device advertisements
 - **Docs:** Document scan behaviour, timeout, and RTL filter
 
-#### ⏳ TASK-013: BLE connect + subscribe (needs native)
+#### ✅ TASK-013: BLE connect + subscribe (RealBLEManager.connect() written; needs native to run)
 - Implement `RealBLEManager.connect(deviceId)` 
 - Subscribe to radar characteristic notifications
 - On notification: call `parseRadarPacket()` → emit `Threat[]` to subscribers
@@ -115,7 +115,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
 - **Test:** Integration test with `MockBLEManager` — emit packets, verify parsed output
 - **Docs:** Document connection flow, notification subscription, and error handling
 
-#### ⏳ TASK-014: Reconnect logic (needs native)
+#### ✅ TASK-014: Reconnect logic (written in RealBLEManager; needs native to run)
 - Implement reconnect loop: retry every 3s for 60s, then every 10s, never stop
 - Distinguish between "device not found" vs "connection refused"
 - Persist last connected device UUID via AsyncStorage
