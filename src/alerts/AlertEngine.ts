@@ -12,10 +12,13 @@ export class AlertEngine {
   private clearDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private clearCapTimer: ReturnType<typeof setTimeout> | null = null;
   private onTrigger: (trigger: AlertTrigger) => void;
-  private pendingClearResolve: (() => void) | null = null;
 
   constructor(onTrigger: (trigger: AlertTrigger) => void) {
     this.onTrigger = onTrigger;
+  }
+
+  setOnTrigger(cb: (trigger: AlertTrigger) => void): void {
+    this.onTrigger = cb;
   }
 
   /**
