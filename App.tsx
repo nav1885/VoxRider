@@ -92,6 +92,7 @@ export default function App(): React.JSX.Element {
                   onConnected={(device: DeviceInfo) => {
                     useSettingsStore.getState().addPairedDevice(device);
                     useSettingsStore.getState().updateLastConnected(device.id);
+                    connectionAlertEngine.onFirstConnect();
                     navigation.reset({index: 0, routes: [{name: 'Main'}]});
                   }}
                 />

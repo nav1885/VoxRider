@@ -1,97 +1,151 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# VoxRider
 
-# Getting Started
+React Native app that connects to a Garmin Varia RTL515 bike radar via Bluetooth and delivers spoken TTS voice alerts through your earbuds — hands-free, eyes-free situational awareness for road cyclists.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+---
 
-## Step 1: Start Metro
+## What it does
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+- Scans for and pairs with a Garmin Varia RTL515 radar
+- Displays approaching vehicles on a visual sidebar strip (Wahoo-style, full screen height)
+- Announces threats via TTS: *"2 vehicles, high speed"* / *"Clear"*
+- Auto-reconnects on disconnect, announces *"Radar disconnected"* / *"Radar reconnected"*
+- Works in the background (screen locked, app backgrounded) via Android foreground service + iOS background BLE
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+---
+
+## Prerequisites
+
+- Node.js ≥ 18
+- React Native environment set up per [reactnative.dev/docs/set-up-your-environment](https://reactnative.dev/docs/set-up-your-environment)
+- iOS: Xcode 15+, iOS 15+ device or simulator
+- Android: Android Studio, API 26+ device or emulator
+
+---
+
+## Setup
 
 ```sh
-# Using npm
+# Install dependencies
+npm install
+
+# iOS — install CocoaPods
+cd ios && pod install && cd ..
+```
+
+---
+
+## Running
+
+```sh
+# Start Metro bundler
 npm start
 
-# OR using Yarn
-yarn start
-```
-
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
-```
-
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
+# iOS (separate terminal)
 npm run ios
 
-# OR using Yarn
-yarn ios
+# Android (separate terminal)
+npm run android
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+---
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+## Tests
 
-## Step 3: Modify your app
+```sh
+npm test
+```
 
-Now that you have successfully run the app, let's make changes!
+128 tests across 12 suites:
+- BLE packet parser (18 tests)
+- Alert engine — trigger logic, throttle, debounce (19 tests)
+- TTS engine — snapshot-on-completion, watchdog, escalation (10 tests)
+- Connection alert engine — disconnect/reconnect/backoff (12 tests)
+- Alert message builder — verbosity levels (9 tests)
+- End-to-end alert pipeline integration (5 tests)
+- RadarStrip component (8 tests)
+- MainScreen component (13 tests)
+- SettingsPanel component (10 tests)
+- PairingStep1 + PairingStep2 screens (10 tests)
+- Bluetooth permissions hook + banner (13 tests)
+- App launch routing (1 test)
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+---
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+## Architecture
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for full data flow, BLE protocol details, component structure, and alert engine rules.
 
-## Congratulations! :tada:
+Key files:
 
-You've successfully run and modified your React Native App. :partying_face:
+| Path | What it does |
+|------|-------------|
+| `src/ble/RealBLEManager.ts` | BLE scan/connect/subscribe via react-native-ble-plx |
+| `src/ble/MockBLEManager.ts` | Test double — used in all JS tests and dev builds |
+| `src/ble/parseRadarPacket.ts` | Decodes raw Varia BLE packets → `Threat[]` |
+| `src/ble/radarStore.ts` | Zustand store for high-frequency BLE state |
+| `src/alerts/AlertEngine.ts` | Threat state → alert trigger decisions |
+| `src/alerts/TTSEngine.ts` | Snapshot-on-completion, escalation interrupt, watchdog |
+| `src/alerts/NativeTTSBackend.ts` | react-native-tts wrapper (audio ducking, rate) |
+| `src/alerts/ConnectionAlertEngine.ts` | Disconnect/reconnect TTS + exponential backoff |
+| `src/alerts/NoOpTTSBackend.ts` | Dev placeholder — logs to console, no native TTS |
+| `src/settings/settingsStore.ts` | Zustand + AsyncStorage for persisted settings |
+| `src/permissions/useBluetoothPermission.ts` | BLE permission request by Android API level |
+| `src/ui/screens/MainScreen.tsx` | Radar strip + threat state + battery bar |
+| `src/ui/screens/SettingsPanel.tsx` | Verbosity / units / sidebar / paired devices |
+| `src/ui/screens/PairingStep1.tsx` | Turn on Varia — step 1 of pairing |
+| `src/ui/screens/PairingStep2.tsx` | Scan + connect — step 2 of pairing |
+| `android/app/src/main/java/com/voxrider/RadarService.kt` | Android foreground service |
 
-### Now what?
+---
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+## Switching from Mock to Real BLE
 
-# Troubleshooting
+The app currently uses `MockBLEManager` in `App.tsx`. To use real BLE once native tools are available:
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+1. In `App.tsx`, replace:
+   ```ts
+   import {MockBLEManager} from './src/ble/MockBLEManager';
+   const bleManager = new MockBLEManager();
+   ```
+   with:
+   ```ts
+   import {RealBLEManager} from './src/ble/RealBLEManager';
+   const bleManager = new RealBLEManager();
+   ```
 
-# Learn More
+2. Replace `NoOpTTSBackend` with `NativeTTSBackend`:
+   ```ts
+   import {NativeTTSBackend} from './src/alerts/NativeTTSBackend';
+   const ttsBackend = new NativeTTSBackend();
+   await ttsBackend.initialize(); // call this once on app start
+   ```
 
-To learn more about React Native, take a look at the following resources:
+---
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+## BLE Protocol
+
+Garmin Varia RTL515 uses a reverse-engineered protocol (community research via pycycling/harbour-tacho):
+
+- **Service UUID:** `6A4E3200-667B-11E3-949A-0800200C9A66`
+- **Radar characteristic:** `6A4E3203-667B-11E3-949A-0800200C9A66`
+- **Battery:** Standard BLE Battery Service `0x180F` / `0x2A19`
+- **Packet format:** 1-byte header (`seq_id:4 | count:4`) + 3 bytes/threat (speed uint8 m/s, distance uint8 m, flags bits 7–6 = threat level)
+- **Split packets:** >6 threats split across two packets, reassembled by shared sequence ID (500ms timeout)
+
+> **Distribution note:** Using a reverse-engineered protocol carries App Store / Play Store risk. v1 strategy: Android APK sideload / iOS personal dev cert / open-source GitHub.
+
+---
+
+## Demo Mode
+
+Hold the Varia power button for 6 seconds to enter demo mode — simulates threat sequences without a real vehicle. Use this for testing the full alert pipeline without riding.
+
+---
+
+## Pinned versions
+
+- React Native: 0.84.1
+- Node.js: ≥ 18.0.0
+- Android minSdk: 26 (Android 8.0)
+- iOS minimum: 15.0
