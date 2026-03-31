@@ -92,7 +92,7 @@ export function getMaxThreatLevel(threats: Threat[]): ThreatLevel {
   if (threats.length === 0) {
     return ThreatLevel.None;
   }
-  return threats.reduce((max, t) => {
+  return threats.reduce<ThreatLevel>((max, t) => {
     const resolved = resolveThreatLevel(t.level);
     return resolved > max ? resolved : max;
   }, ThreatLevel.None);
