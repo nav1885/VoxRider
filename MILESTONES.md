@@ -9,7 +9,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
 
 ### Phase 0.1 — Scaffold
 
-#### TASK-000: React Native project setup
+#### ✅ TASK-000: React Native project setup
 - Init React Native project (TypeScript template)
 - Configure for iOS and Android
 - Verify hello-world runs on both simulators
@@ -23,7 +23,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
 - **Test:** `yarn test` runs with no failures on a sample test file
 - **Docs:** Create README with setup instructions, prerequisites, how to run, and how to run tests
 
-#### TASK-001: Dependency installation & platform configuration
+#### ✅ TASK-001: Dependency installation & platform configuration
 - Install `react-native-ble-plx` + native linking
 - Install `react-native-tts` + native linking
 - Install `@react-native-async-storage/async-storage`
@@ -42,7 +42,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
 - **Test:** No build errors on both platforms. Native modules resolve.
 - **Docs:** Document all native configuration steps in README
 
-#### TASK-002: Project architecture scaffold
+#### ✅ TASK-002: Project architecture scaffold
 - Define folder structure: `src/ble/`, `src/alerts/`, `src/ui/`, `src/settings/`, `src/services/`
 - Define TypeScript interfaces: `Threat`, `RadarPacket`, `DeviceInfo`, `AlertSettings`
 - Create `src/constants/strings.ts` — all user-facing strings in one file, no magic strings in components
@@ -73,7 +73,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
 
 ### Phase 1.1 — Packet Parser
 
-#### TASK-010: BLE packet parser
+#### ✅ TASK-010: BLE packet parser
 - Implement `parseRadarPacket(bytes: Uint8Array): Threat[]`
 - Handle 1-byte idle packet (zero threats)
 - Decode per-threat: speed (raw `uint8` m/s), distance (raw `uint8` meters), threat level (bits 7–6 of flags byte) — parser outputs raw values only, unit conversion handled separately in `formatDistance()` / `formatSpeed()` utilities
@@ -86,7 +86,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
   - Edge cases: max distance (255m), max speed, all threat levels
 - **Docs:** Inline documentation of byte format with reference to community spec
 
-#### TASK-011: Battery level characteristic
+#### ⏳ TASK-011: Battery level characteristic (needs native — Xcode/Android Studio)
 - **UUID resolved:** Standard BLE Battery Service `0x180F` / Battery Level characteristic `0x2A19` (full UUID `00002a19-0000-1000-8000-00805f9b34fb`). Format: `uint8`, 0–100 percentage. Supports notifications.
 - Subscribe to battery characteristic notifications; also read on connect for immediate value
 - If characteristic is absent or read fails: return `null` — UI hides battery bar (REQ-VIS-004)
@@ -96,7 +96,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
 
 ### Phase 1.2 — BLE Manager
 
-#### TASK-012: BLE scan
+#### ⏳ TASK-012: BLE scan (needs native)
 - Implement `RealBLEManager.scan()` using `react-native-ble-plx`
 - Filter for devices with `RTL` name prefix
 - Return discovered devices with name + RSSI (signal strength)
@@ -105,7 +105,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
 - **Test:** Integration test with `MockBLEManager` emitting fake device advertisements
 - **Docs:** Document scan behaviour, timeout, and RTL filter
 
-#### TASK-013: BLE connect + subscribe
+#### ⏳ TASK-013: BLE connect + subscribe (needs native)
 - Implement `RealBLEManager.connect(deviceId)` 
 - Subscribe to radar characteristic notifications
 - On notification: call `parseRadarPacket()` → emit `Threat[]` to subscribers
@@ -115,7 +115,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
 - **Test:** Integration test with `MockBLEManager` — emit packets, verify parsed output
 - **Docs:** Document connection flow, notification subscription, and error handling
 
-#### TASK-014: Reconnect logic
+#### ⏳ TASK-014: Reconnect logic (needs native)
 - Implement reconnect loop: retry every 3s for 60s, then every 10s, never stop
 - Distinguish between "device not found" vs "connection refused"
 - Persist last connected device UUID via AsyncStorage
@@ -128,7 +128,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
 
 ### Phase 1.3 — Background Service
 
-#### TASK-015: Android foreground service + battery optimization
+#### ⏳ TASK-015: Android foreground service + battery optimization (needs native)
 - Implement Android foreground service wrapping BLE manager
 - Persistent notification: "VoxRider active" (IMPORTANCE_LOW — visible but not intrusive)
 - Declare `FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE` in manifest (required Android 14+)
@@ -150,7 +150,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
   - Grant exemption → verify banner disappears
 - **Docs:** Document service lifecycle, manifest config, OEM deep-link strategy
 
-#### TASK-016: iOS background BLE
+#### ⏳ TASK-016: iOS background BLE (needs native)
 - Configure `UIBackgroundModes: bluetooth-central` in `Info.plist`
 - Verify `CBCentralManager` background scanning with specific service UUID
 - **Test:** Background app → lock screen → verify BLE notifications continue
@@ -163,7 +163,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
 
 ### Phase 2.1 — Alert Engine
 
-#### TASK-020: Alert trigger logic
+#### ✅ TASK-020: Alert trigger logic
 - Implement `AlertEngine.evaluate(prev: Threat[], next: Threat[], connectionStatus: ConnectionStatus): AlertTrigger | null`
 - **Connection gate:** Return `null` immediately if `connectionStatus !== 'connected'`
 - Triggers (the only three): vehicle count increases, max threat level escalates (medium → high), all-clear
@@ -186,7 +186,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
   - Same state repeated → no alert
   - BLE packet arrives while `connectionStatus !== 'connected'` → no alert
 
-#### TASK-021: Snapshot-on-completion + watchdog timer
+#### ✅ TASK-021: Snapshot-on-completion + watchdog timer
 - Implement TTS queue: single-slot, not a queue — "pending" state only
 - While speaking: discard incoming BLE updates — no queue
 - On TTS finish: compare current state against `lastSpokenState` → fire only if count increased or max level escalated since last alert
@@ -205,7 +205,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
   - Simulate `onFinished` never firing → watchdog fires at 10s, state resets, next alert works
   - Simulate audio focus loss mid-speech → state resets, next alert works
 
-#### TASK-022: Alert message builder
+#### ✅ TASK-022: Alert message builder
 - Implement `buildAlertMessage(threats: Threat[], verbosity: VerbositySetting): string`
 - Detailed: `"2 vehicles, high speed"` / `"1 vehicle, medium speed"`
 - Balanced: `"2 vehicles"` / `"1 vehicle"`
@@ -216,7 +216,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
 
 ### Phase 2.2 — TTS Integration
 
-#### TASK-023: TTS engine
+#### ✅ TASK-023: TTS engine
 - Implement `TTSEngine` wrapping `react-native-tts`
 - `speak(message: string, interrupt: boolean)`: speak message, interrupting if flagged
 - Audio ducking: iOS `AVAudioSession .duckOthers`, Android `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK`
@@ -232,7 +232,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
   - Verify audio focus loss triggers state reset on Android
 - **Docs:** Document iOS and Android audio session configuration, watchdog rationale
 
-#### TASK-024: End-to-end alert pipeline test
+#### ✅ TASK-024: End-to-end alert pipeline test
 - Wire `MockBLEManager` → `PacketParser` → `AlertEngine` → `TTSEngine` (mocked TTS output)
 - Simulate full ride scenario: vehicle appears, approaches, speeds up, clears
 - Verify correct alerts fire in correct order with correct messages
@@ -246,7 +246,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
 
 ### Phase 3.1 — Radar Strip Component
 
-#### TASK-030: RadarStrip component
+#### ✅ TASK-030: RadarStrip component
 - Implement `<RadarStrip threats={Threat[]} position="left|right" />`
 - Vertical strip, full screen height
 - Map threat distance (0–255m) to vertical position — far=bottom, close=top
@@ -266,14 +266,14 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
   - Animated re-render: verify icons move toward top as distance decreases
 - **Docs:** Document component props and position-mapping algorithm
 
-#### TASK-031: Car icon asset
+#### ✅ TASK-031: Car icon asset
 - Create or source minimal car icon (SVG preferred, ~28px)
 - Ensure legibility on orange and red backgrounds
 - **Test:** Visual review at multiple screen densities (1x, 2x, 3x)
 
 ### Phase 3.2 — Main Screen
 
-#### TASK-032: Main screen layout
+#### ✅ TASK-032: Main screen layout
 - Implement single-screen layout with sidebar + main area
 - Connection status: dot indicator + device name or "Searching..."
 - Live threat state: large centered text — "Clear" or "N vehicles · Xft"
@@ -289,7 +289,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
   - Toggle sidebar position setting → verify sidebar moves
   - Toggle units setting → verify distance display changes
 
-#### TASK-033: Settings panel (swipe left)
+#### ✅ TASK-033: Settings panel (swipe left)
 - Implement swipe-left gesture on main screen → slide-in settings panel
 - Settings panel contains: sidebar position, alert verbosity, units, paired devices
 - Smooth slide animation
@@ -309,14 +309,14 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
 
 ### Phase 4.1 — Pairing Flow
 
-#### TASK-040: Pairing screen — Step 1 (Turn on Varia)
+#### ✅ TASK-040: Pairing screen — Step 1 (Turn on Varia)
 - Illustrated screen with Varia diagram
 - Instruction text: *"Turn on your Varia"*
 - Step indicator: 1 of 2
 - "Search" button → Step 2
 - **Test:** Render, button tap navigates to Step 2
 
-#### TASK-041: Pairing screen — Step 2 (Select & Connect)
+#### ✅ TASK-041: Pairing screen — Step 2 (Select & Connect)
 - Scanning animation + "Searching for your Varia..." text
 - Step indicator: 2 of 2
 - Calls `BLEManager.scan()` on mount
@@ -334,7 +334,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
   - Device disappears from scan list after connect attempt → rescan automatically, stay on Step 2
   - 30s timeout with no devices → error message shown, "Try again" restarts scan
 
-#### TASK-043: Android permissions flow
+#### ⏳ TASK-043: Android permissions flow
 Request the correct BLE permissions based on Android API level at runtime.
 
 - **Android 12+ (API 31+):** Request `BLUETOOTH_SCAN` + `BLUETOOTH_CONNECT`
@@ -351,7 +351,7 @@ Request the correct BLE permissions based on Android API level at runtime.
 
 ### Phase 4.2 — Connection States
 
-#### TASK-044: App launch routing
+#### ✅ TASK-044: App launch routing
 - On launch: check AsyncStorage for paired devices
 - If none → pairing onboarding (Step 1)
 - If one or more → go to main screen and attempt auto-connect:
@@ -367,7 +367,7 @@ Request the correct BLE permissions based on Android API level at runtime.
   - Two fallback devices found simultaneously → connects to stronger RSSI
   - No paired devices in range → "Searching..." shown indefinitely
 
-#### TASK-045: Disconnect + reconnect UX
+#### ✅ TASK-045: Disconnect + reconnect UX
 - Visual: connection status updates in real time
 - TTS: *"Radar disconnected"* on drop
 - TTS: *"Radar reconnected"* on recovery
@@ -394,14 +394,14 @@ Request the correct BLE permissions based on Android API level at runtime.
 
 ### Phase 5.1 — Settings Implementation
 
-#### TASK-050: Settings persistence
+#### ✅ TASK-050: Settings persistence
 - Implement `SettingsStore` using AsyncStorage
 - Load settings on app launch
 - Persist on every change
 - Default values: sidebar=left, verbosity=detailed, units=imperial
 - **Test:** Change setting → kill app → relaunch → verify setting persists
 
-#### TASK-051: Paired devices management
+#### ✅ TASK-051: Paired devices management
 - List view of all paired devices (name + raw ID)
 - Remove device: confirm dialog → delete from AsyncStorage → disconnect if active → return to searching
 - Add Device: launch pairing flow
@@ -411,7 +411,7 @@ Request the correct BLE permissions based on Android API level at runtime.
   - Remove non-active device → list updates, no disconnect
   - Add device → completes pairing → appears in list
 
-#### TASK-052: Units conversion
+#### ✅ TASK-052: Units conversion
 - Implement `formatDistance(meters: number, units: 'imperial' | 'metric'): string`
 - Imperial: meters → feet (round to nearest 10ft for readability)
 - Metric: pass through in meters
@@ -420,13 +420,13 @@ Request the correct BLE permissions based on Android API level at runtime.
 
 ### Phase 5.2 — Polish
 
-#### TASK-053: Test Alert button
+#### ⏳ TASK-053: Test Alert button (UI built, TTS not wired)
 - Tapping Test Alert fires TTS with a sample alert using current verbosity setting
 - Example: *"Test — 1 vehicle, high speed"*
 - Disabled if radar not connected
 - **Test:** Tap button → TTS fires with correct verbosity format
 
-#### TASK-054: Conflict detection hint
+#### ✅ TASK-054: Conflict detection hint
 - Track consecutive connection failure count (reset to 0 on any success)
 - After 3+ consecutive failures: render inline banner below connection status line — *"Is another app connected to your Varia?"*
 - Banner has a manual dismiss (✕) — hides until next failure cycle
@@ -437,7 +437,7 @@ Request the correct BLE permissions based on Android API level at runtime.
   - Successful connect → banner dismisses
   - Manual dismiss → banner hidden; 3 more failures → banner reappears
 
-#### TASK-055: Varia battery display
+#### ⏳ TASK-055: Varia battery display (UI built, BLE wiring needs native)
 - Parse battery level from BLE (characteristic UUID confirmed in TASK-011: `0x2A19`)
 - Display as progress bar on main screen
 - State: `batteryLevel: number | null` in `useRadarStore` — `null` = never received
