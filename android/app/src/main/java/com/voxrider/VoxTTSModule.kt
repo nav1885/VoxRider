@@ -1,6 +1,9 @@
 package com.voxrider
 
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.os.Build
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
@@ -17,6 +20,10 @@ class VoxTTSModule(private val reactContext: ReactApplicationContext) :
     private var tts: TextToSpeech? = null
     private var ready = false
     private var speakCount = 0
+    private val audioManager by lazy {
+        reactContext.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
+    }
+    private var focusRequest: AudioFocusRequest? = null
 
     companion object {
         const val TAG = "VoxTTS"
@@ -52,9 +59,11 @@ class VoxTTSModule(private val reactContext: ReactApplicationContext) :
             }
             override fun onDone(utteranceId: String?) {
                 emit("onDone", "id=$utteranceId")
+                abandonAudioFocus()
             }
             override fun onStop(utteranceId: String?, interrupted: Boolean) {
                 emit("onStop", "id=$utteranceId interrupted=$interrupted")
+                abandonAudioFocus()
             }
             @Deprecated("Deprecated in API 21")
             override fun onError(utteranceId: String?) {
@@ -68,6 +77,39 @@ class VoxTTSModule(private val reactContext: ReactApplicationContext) :
 
     override fun getName(): String = "VoxTTS"
 
+    /** Request transient audio focus so music ducks while we speak. */
+    private fun requestAudioFocus() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val attrs = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build()
+            val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                .setAudioAttributes(attrs)
+                .setAcceptsDelayedFocusGain(false)
+                .build()
+            focusRequest = req
+            audioManager.requestAudioFocus(req)
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.requestAudioFocus(
+                null,
+                AudioManager.STREAM_ALARM,
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
+            )
+        }
+    }
+
+    private fun abandonAudioFocus() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            focusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.abandonAudioFocus(null)
+        }
+        focusRequest = null
+    }
+
     @ReactMethod
     fun speak(text: String) {
         speakCount++
@@ -78,6 +120,8 @@ class VoxTTSModule(private val reactContext: ReactApplicationContext) :
             emit("speak", "SKIPPED — not ready")
             return
         }
+
+        requestAudioFocus()
 
         val params = Bundle().apply {
             putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_ALARM)
@@ -91,6 +135,7 @@ class VoxTTSModule(private val reactContext: ReactApplicationContext) :
     fun stop() {
         emit("stop", "called")
         tts?.stop()
+        abandonAudioFocus()
     }
 
     override fun invalidate() {
