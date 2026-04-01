@@ -7,6 +7,7 @@ import {
   useColorScheme,
   SafeAreaView,
 } from 'react-native';
+import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import {useRadarStore} from '../../ble/radarStore';
 import {useSettingsStore} from '../../settings/settingsStore';
 import {ConnectionStatus, ThreatLevel} from '../../ble/types';
@@ -20,7 +21,7 @@ interface Props {
   onSwipeLeft?: () => void;
 }
 
-export function MainScreen({onTestAlert}: Props): React.JSX.Element {
+export function MainScreen({onTestAlert, onSwipeLeft}: Props): React.JSX.Element {
   const isDark = useColorScheme() === 'dark';
 
   const threats = useRadarStore(s => s.threats);
@@ -67,7 +68,16 @@ export function MainScreen({onTestAlert}: Props): React.JSX.Element {
 
   const mainPadding = sidebarPosition === 'left' ? {paddingLeft: 52} : {paddingRight: 52};
 
+  const swipeGesture = Gesture.Pan()
+    .runOnJS(true)
+    .onEnd(e => {
+      if (e.translationX < -60 && Math.abs(e.translationY) < 80) {
+        onSwipeLeft?.();
+      }
+    });
+
   return (
+    <GestureDetector gesture={swipeGesture}>
     <SafeAreaView style={[styles.container, isDark && styles.containerDark]} testID="main-screen">
       <RadarStrip threats={threats} position={sidebarPosition} />
 
@@ -124,6 +134,7 @@ export function MainScreen({onTestAlert}: Props): React.JSX.Element {
         </TouchableOpacity>
       </View>
     </SafeAreaView>
+    </GestureDetector>
   );
 }
 
