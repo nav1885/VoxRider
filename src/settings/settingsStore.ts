@@ -11,10 +11,12 @@ interface SettingsState {
   verbosity: AlertVerbosity;
   units: Units;
   pairedDevices: DeviceInfo[];
+  debugMode: boolean;
 
   setSidebarPosition: (pos: SidebarPosition) => void;
   setVerbosity: (v: AlertVerbosity) => void;
   setUnits: (u: Units) => void;
+  setDebugMode: (on: boolean) => void;
   addPairedDevice: (device: DeviceInfo) => void;
   removePairedDevice: (deviceId: string) => void;
   updateLastConnected: (deviceId: string) => void;
@@ -27,7 +29,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   verbosity: AlertVerbosity.Detailed,
   units: 'imperial',
   pairedDevices: [],
+  debugMode: false,
 
+  setDebugMode: on => {
+    set({debugMode: on});
+  },
   setSidebarPosition: pos => {
     set({sidebarPosition: pos});
     get()._persist();
