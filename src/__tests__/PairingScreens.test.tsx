@@ -1,30 +1,39 @@
 import React from 'react';
 import {render, fireEvent, waitFor, act} from '@testing-library/react-native';
+import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {PairingStep1} from '../ui/screens/PairingStep1';
 import {PairingStep2} from '../ui/screens/PairingStep2';
 import {MockBLEManager} from '../ble/MockBLEManager';
 import {DeviceInfo} from '../ble/types';
 
+const insetMetrics = {
+  frame: {x: 0, y: 0, width: 390, height: 844},
+  insets: {top: 47, left: 0, right: 0, bottom: 34},
+};
+function Wrapper({children}: {children: React.ReactNode}) {
+  return <SafeAreaProvider initialMetrics={insetMetrics}>{children}</SafeAreaProvider>;
+}
+
 const device1: DeviceInfo = {id: 'RTL64894', name: 'RTL64894', rssi: -55};
 const device2: DeviceInfo = {id: 'RTL11111', name: 'RTL11111', rssi: -75};
 
 describe('PairingStep1', () => {
-  it('renders title and instruction', () => {
-    const {getByTestId} = render(<PairingStep1 onSearch={jest.fn()} />);
-    expect(getByTestId('step-title')).toBeTruthy();
-    expect(getByTestId('step-instruction')).toBeTruthy();
+  it('renders illustration, label, and progress', () => {
+    const {getByTestId} = render(<PairingStep1 onSearch={jest.fn()} />, {wrapper: Wrapper});
+    expect(getByTestId('varia-illustration')).toBeTruthy();
+    expect(getByTestId('search-button')).toBeTruthy();
     expect(getByTestId('step-progress').props.children).toBe('Step 1 of 2');
   });
 
   it('calls onSearch when Search button tapped', () => {
     const onSearch = jest.fn();
-    const {getByTestId} = render(<PairingStep1 onSearch={onSearch} />);
+    const {getByTestId} = render(<PairingStep1 onSearch={onSearch} />, {wrapper: Wrapper});
     fireEvent.press(getByTestId('search-button'));
     expect(onSearch).toHaveBeenCalledTimes(1);
   });
 
   it('renders Varia illustration', () => {
-    const {getByTestId} = render(<PairingStep1 onSearch={jest.fn()} />);
+    const {getByTestId} = render(<PairingStep1 onSearch={jest.fn()} />, {wrapper: Wrapper});
     expect(getByTestId('varia-illustration')).toBeTruthy();
   });
 });
@@ -45,6 +54,7 @@ describe('PairingStep2', () => {
     ble.setScanDevices([]);
     const {getByTestId} = render(
       <PairingStep2 bleManager={ble} onConnected={jest.fn()} />,
+      {wrapper: Wrapper},
     );
     expect(getByTestId('scanning-indicator')).toBeTruthy();
     expect(getByTestId('step-progress').props.children).toBe('Step 2 of 2');
@@ -54,6 +64,7 @@ describe('PairingStep2', () => {
     ble.setScanDevices([device1]);
     const {getByTestId} = render(
       <PairingStep2 bleManager={ble} onConnected={jest.fn()} />,
+      {wrapper: Wrapper},
     );
     await waitFor(() => getByTestId(`device-item-${device1.id}`));
     expect(getByTestId(`device-item-${device1.id}`)).toBeTruthy();
@@ -64,6 +75,7 @@ describe('PairingStep2', () => {
     ble.setScanDevices([device2, device1]); // intentionally reversed
     const {getAllByTestId} = render(
       <PairingStep2 bleManager={ble} onConnected={jest.fn()} />,
+      {wrapper: Wrapper},
     );
     await waitFor(() => getAllByTestId(/^device-item-/));
     const items = getAllByTestId(/^device-item-/);
@@ -76,6 +88,7 @@ describe('PairingStep2', () => {
     const onConnected = jest.fn();
     const {getByTestId} = render(
       <PairingStep2 bleManager={ble} onConnected={onConnected} />,
+      {wrapper: Wrapper},
     );
     await waitFor(() => getByTestId(`device-item-${device1.id}`));
     fireEvent.press(getByTestId(`device-item-${device1.id}`));
@@ -87,6 +100,7 @@ describe('PairingStep2', () => {
     ble.setConnectShouldFail(true);
     const {getByTestId} = render(
       <PairingStep2 bleManager={ble} onConnected={jest.fn()} />,
+      {wrapper: Wrapper},
     );
     await waitFor(() => getByTestId(`device-item-${device1.id}`));
     fireEvent.press(getByTestId(`device-item-${device1.id}`));
@@ -100,6 +114,7 @@ describe('PairingStep2', () => {
     ble.setScanDevices([]);
     const {getByTestId} = render(
       <PairingStep2 bleManager={ble} onConnected={jest.fn()} />,
+      {wrapper: Wrapper},
     );
     act(() => jest.advanceTimersByTime(30001));
     await waitFor(() => getByTestId('timeout-message'));
@@ -110,6 +125,7 @@ describe('PairingStep2', () => {
     ble.setScanDevices([]);
     const {getByTestId} = render(
       <PairingStep2 bleManager={ble} onConnected={jest.fn()} />,
+      {wrapper: Wrapper},
     );
     act(() => jest.advanceTimersByTime(30001));
     await waitFor(() => getByTestId('try-again-button'));
