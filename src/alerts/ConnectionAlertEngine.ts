@@ -20,6 +20,8 @@ const BACKOFF_INTERVALS_MS = [30000, 60000, 300000, 600000, 900000];
 export class ConnectionAlertEngine {
   private speak: (message: string) => void;
   private prevStatus: ConnectionStatus | null = null;
+  private hadConnection = false;
+  private wasDisconnected = false;
   private backoffTimer: ReturnType<typeof setTimeout> | null = null;
   private backoffStep = 0;
 
@@ -41,16 +43,15 @@ export class ConnectionAlertEngine {
 
     if (next === ConnectionStatus.Connected) {
       this._cancelBackoff();
-      if (prev !== null && prev !== ConnectionStatus.Connecting && prev !== ConnectionStatus.Scanning) {
-        // Only announce reconnect if we were previously disconnected/reconnecting (not first connect)
-        if (prev === ConnectionStatus.Disconnected || prev === ConnectionStatus.Reconnecting) {
-          this.speak(Strings.ttsRadarReconnected);
-        }
+      if (this.wasDisconnected) {
+        this.speak(Strings.ttsRadarReconnected);
+        this.wasDisconnected = false;
       }
+      this.hadConnection = true;
     } else if (next === ConnectionStatus.Disconnected || next === ConnectionStatus.Reconnecting) {
-      const wasConnected = prev === ConnectionStatus.Connected;
-      if (wasConnected) {
+      if (this.hadConnection && prev === ConnectionStatus.Connected) {
         this.speak(Strings.ttsRadarDisconnected);
+        this.wasDisconnected = true;
         this._startBackoff();
       }
     }
@@ -63,6 +64,8 @@ export class ConnectionAlertEngine {
   onFirstConnect(): void {
     this._cancelBackoff();
     this.prevStatus = ConnectionStatus.Connected;
+    this.hadConnection = true;
+    this.wasDisconnected = false;
   }
 
   destroy(): void {
