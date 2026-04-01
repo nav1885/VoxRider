@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!--
+    VoxRider app icon — v5
+    Car centred + filling the canvas. Radar wifi symbol overlaid on rear of car.
+    White/light car silhouette on dark background. Red radar dot. "VR" at bottom.
+  -->
+  <defs>
+    <clipPath id="iconClip">
+      <rect width="1024" height="1024" rx="200"/>
+    </clipPath>
+    <!-- Soft glow for radar arcs -->
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <!-- Red dot pulse glow -->
+    <filter id="redGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="14" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" rx="200" fill="#0D1117"/>
+
+  <g clip-path="url(#iconClip)">
+
+    <!-- ═══════════════════════════════════════════
+         CAR — top-down silhouette, full height
+         Front faces DOWN. Centred at x=512.
+         Body from y=60 to y=900.
+    ═══════════════════════════════════════════ -->
+
+    <!-- TYRES — dark, flush with body edges -->
+    <!-- Rear-left  --> <rect x="310" y="90"  width="68" height="138" rx="20" fill="#1C1C1E"/>
+    <!-- Rear-right --> <rect x="646" y="90"  width="68" height="138" rx="20" fill="#1C1C1E"/>
+    <!-- Front-left --> <rect x="310" y="796" width="68" height="138" rx="20" fill="#1C1C1E"/>
+    <!-- Front-right--> <rect x="646" y="796" width="68" height="138" rx="20" fill="#1C1C1E"/>
+    <!-- Rim highlights -->
+    <ellipse cx="344" cy="159"  rx="18" ry="36" fill="#2E2E2E"/>
+    <ellipse cx="680" cy="159"  rx="18" ry="36" fill="#2E2E2E"/>
+    <ellipse cx="344" cy="865"  rx="18" ry="36" fill="#2E2E2E"/>
+    <ellipse cx="680" cy="865"  rx="18" ry="36" fill="#2E2E2E"/>
+
+    <!-- MAIN BODY PILL — single clean white shape, no shoulder border -->
+    <rect x="340" y="60"  width="344" height="910" rx="130" fill="#FFFFFF"/>
+
+    <!-- REAR DECK (top = rear of vehicle) -->
+    <rect x="368" y="70"  width="288" height="80"  rx="40"  fill="#1A1A1A"/>
+    <!-- Rear lights -->
+    <rect x="374" y="86"  width="100" height="28" rx="14" fill="#FF3B30"/>
+    <rect x="550" y="86"  width="100" height="28" rx="14" fill="#FF3B30"/>
+
+    <!-- REAR WINDOW -->
+    <rect x="376" y="146" width="272" height="96"  rx="22"  fill="#1B3A6B" opacity="0.88"/>
+
+    <!-- CABIN / ROOF -->
+    <rect x="368" y="238" width="288" height="320" rx="30"  fill="#111111"/>
+    <!-- Roof centre spine -->
+    <rect x="508" y="248" width="8"   height="300" rx="4"   fill="#FFFFFF" opacity="0.08"/>
+
+    <!-- SIDE MIRRORS -->
+    <path d="M 340,320 L 280,344 L 284,388 L 340,376 Z" fill="#CCCCCC"/>
+    <path d="M 684,320 L 744,344 L 740,388 L 684,376 Z" fill="#CCCCCC"/>
+
+    <!-- WINDSHIELD (front, facing down) -->
+    <rect x="376" y="554" width="272" height="108" rx="22"  fill="#1B3A6B" opacity="0.80"/>
+
+    <!-- HOOD -->
+    <rect x="360" y="658" width="304" height="194" rx="30"  fill="#F0F0F0"/>
+    <!-- Hood centre crease -->
+    <rect x="504" y="668" width="16"  height="174" rx="8"   fill="#DDDDDD"/>
+
+    <!-- FRONT SPLITTER -->
+    <rect x="370" y="844" width="284" height="34"  rx="17"  fill="#1A1A1A"/>
+    <!-- Headlights -->
+    <rect x="376" y="856" width="108" height="22"  rx="11"  fill="#FFFDE7"/>
+    <rect x="540" y="856" width="108" height="22"  rx="11"  fill="#FFFDE7"/>
+
+    <!-- ═══════════════════════════════════════════
+         RADAR / WIFI SYMBOL — centred on rear of car
+         Origin: cx=512, cy=248 (top of rear window)
+         Arcs open UPWARD (toward top of icon = rear of car)
+    ═══════════════════════════════════════════ -->
+
+    <!-- Arc 1 — innermost -->
+    <path d="M 432,248 A 80,80   0 0,1 592,248"
+      fill="none" stroke="#FF3B30" stroke-width="26" stroke-opacity="0.95"
+      stroke-linecap="round" filter="url(#glow)"/>
+
+    <!-- Arc 2 -->
+    <path d="M 352,248 A 160,160 0 0,1 672,248"
+      fill="none" stroke="#FF3B30" stroke-width="20" stroke-opacity="0.55"
+      stroke-linecap="round" filter="url(#glow)"/>
+
+    <!-- Arc 3 — outermost -->
+    <path d="M 264,248 A 248,248 0 0,1 760,248"
+      fill="none" stroke="#FF3B30" stroke-width="14" stroke-opacity="0.25"
+      stroke-linecap="round" filter="url(#glow)"/>
+
+    <!-- Red dot — radar source point -->
+    <circle cx="512" cy="248" r="32" fill="#FF3B30" filter="url(#redGlow)"/>
+    <circle cx="512" cy="248" r="18" fill="#FF6B6B"/>
+
+    <!-- ═══════════════════════════════════════════
+         "VR" WORDMARK — bottom strip
+    ═══════════════════════════════════════════ -->
+    <text
+      x="512" y="996"
+      font-family="'Arial Black', 'Helvetica Neue', Arial, sans-serif"
+      font-size="96"
+      font-weight="900"
+      fill="#FFFFFF"
+      fill-opacity="0.92"
+      text-anchor="middle"
+      letter-spacing="28">VR</text>
+
+  </g>
+</svg>
