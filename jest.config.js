@@ -6,6 +6,7 @@ module.exports = {
     '@react-native-async-storage/async-storage':
       '@react-native-async-storage/async-storage/jest/async-storage-mock',
     'react-native-tts': '<rootDir>/src/__mocks__/react-native-tts.js',
+    'react-native-ble-plx': '<rootDir>/src/__mocks__/react-native-ble-plx.js',
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
   transformIgnorePatterns: [

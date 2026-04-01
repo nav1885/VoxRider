@@ -11,7 +11,7 @@ import {MainScreen} from './src/ui/screens/MainScreen';
 import {SettingsPanel} from './src/ui/screens/SettingsPanel';
 import {useSettingsStore} from './src/settings/settingsStore';
 import {useRadarStore} from './src/ble/radarStore';
-import {MockBLEManager} from './src/ble/MockBLEManager';
+import {RealBLEManager} from './src/ble/RealBLEManager';
 import {DeviceInfo} from './src/ble/types';
 import {AlertEngine} from './src/alerts/AlertEngine';
 import {TTSEngine} from './src/alerts/TTSEngine';
@@ -29,8 +29,8 @@ export type RootStackParamList = {
 
 const Stack = createStackNavigator<RootStackParamList>();
 
-// Using MockBLEManager until RealBLEManager is implemented (M1 native tasks)
-const bleManager = new MockBLEManager();
+// Real BLE — connects to Garmin Varia RTL515 via react-native-ble-plx
+const bleManager = new RealBLEManager();
 
 // Alert + TTS pipeline — NativeTTSBackend wraps react-native-tts
 const ttsBackend = new NativeTTSBackend();
@@ -63,7 +63,19 @@ export default function App(): React.JSX.Element {
       await ttsBackend.initialize();
       await loadSettings();
       const {pairedDevices} = useSettingsStore.getState();
-      setInitialRoute(pairedDevices.length > 0 ? 'Main' : 'PairingStep1');
+      if (pairedDevices.length > 0) {
+        // Auto-connect to last paired device
+        const lastDevice = pairedDevices[pairedDevices.length - 1];
+        connectionAlertEngine.onFirstConnect();
+        bleManager.connect(lastDevice.id).catch(() => {
+          // Connection failed — start reconnect loop
+          bleManager.startReconnectLoop(lastDevice.id);
+        });
+        bleManager.watchBluetoothState(lastDevice.id);
+        setInitialRoute('Main');
+      } else {
+        setInitialRoute('PairingStep1');
+      }
     };
     init();
   }, [loadSettings]);
