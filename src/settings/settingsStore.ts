@@ -2,18 +2,16 @@ import {create} from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {AlertVerbosity} from '../alerts/types';
 import {DeviceInfo} from '../ble/types';
-import {SidebarPosition, Units} from './types';
+import {Units} from './types';
 
 const STORAGE_KEY = '@voxrider_settings';
 
 interface SettingsState {
-  sidebarPosition: SidebarPosition;
   verbosity: AlertVerbosity;
   units: Units;
   pairedDevices: DeviceInfo[];
   debugMode: boolean;
 
-  setSidebarPosition: (pos: SidebarPosition) => void;
   setVerbosity: (v: AlertVerbosity) => void;
   setUnits: (u: Units) => void;
   setDebugMode: (on: boolean) => void;
@@ -25,7 +23,6 @@ interface SettingsState {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  sidebarPosition: 'left',
   verbosity: AlertVerbosity.Detailed,
   units: 'imperial',
   pairedDevices: [],
@@ -33,10 +30,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setDebugMode: on => {
     set({debugMode: on});
-  },
-  setSidebarPosition: pos => {
-    set({sidebarPosition: pos});
-    get()._persist();
   },
   setVerbosity: v => {
     set({verbosity: v});
@@ -73,7 +66,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       if (raw) {
         const saved = JSON.parse(raw);
         set({
-          sidebarPosition: saved.sidebarPosition ?? 'left',
           verbosity: saved.verbosity ?? AlertVerbosity.Detailed,
           units: saved.units ?? 'imperial',
           pairedDevices: saved.pairedDevices ?? [],
@@ -84,10 +76,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   _persist: async () => {
     try {
-      const {sidebarPosition, verbosity, units, pairedDevices} = get();
+      const {verbosity, units, pairedDevices} = get();
       await AsyncStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({sidebarPosition, verbosity, units, pairedDevices}),
+        JSON.stringify({verbosity, units, pairedDevices}),
       );
     } catch {}
   },
