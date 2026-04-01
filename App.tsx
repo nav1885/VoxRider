@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {StatusBar, useColorScheme, GestureResponderEvent} from 'react-native';
+import {StatusBar, useColorScheme} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {NavigationContainer} from '@react-navigation/native';
 import {createStackNavigator, CardStyleInterpolators} from '@react-navigation/stack';
@@ -12,12 +12,11 @@ import {SettingsPanel} from './src/ui/screens/SettingsPanel';
 import {useSettingsStore} from './src/settings/settingsStore';
 import {useRadarStore} from './src/ble/radarStore';
 import {RealBLEManager} from './src/ble/RealBLEManager';
-import {DeviceInfo} from './src/ble/types';
-import {AlertEngine} from './src/alerts/AlertEngine';
-import {TTSEngine} from './src/alerts/TTSEngine';
+import {DeviceInfo, ConnectionStatus} from './src/ble/types';
 import {NativeTTSBackend} from './src/alerts/NativeTTSBackend';
 import {ConnectionAlertEngine} from './src/alerts/ConnectionAlertEngine';
-import {AlertVerbosity} from './src/alerts/types';
+import {buildAlertMessage} from './src/alerts/buildAlertMessage';
+import {getMaxThreatLevel} from './src/ble/parseRadarPacket';
 import {Strings} from './src/constants/strings';
 
 export type RootStackParamList = {
@@ -32,24 +31,51 @@ const Stack = createStackNavigator<RootStackParamList>();
 // Real BLE — connects to Garmin Varia RTL515 via react-native-ble-plx
 const bleManager = new RealBLEManager();
 
-// Alert + TTS pipeline — NativeTTSBackend wraps react-native-tts
+// TTS backend
 const ttsBackend = new NativeTTSBackend();
-const alertEngine = new AlertEngine(() => {});
-const ttsEngine = new TTSEngine(ttsBackend, alertEngine, AlertVerbosity.Detailed);
 const connectionAlertEngine = new ConnectionAlertEngine(msg =>
   ttsBackend.speak(msg, () => {}),
 );
 
-// Subscribe to radar store — drive alert + connection engines from BLE state
-useRadarStore.subscribe(state => {
-  ttsEngine.updateState(state.threats, state.connectionStatus);
-  alertEngine.evaluate(state.threats, state.connectionStatus);
-  connectionAlertEngine.onStatusChange(state.connectionStatus);
-});
+// Announce threat changes, respecting the user's verbosity setting
+let lastAnnouncedCount = 0;
+let clearTimer: ReturnType<typeof setTimeout> | null = null;
 
-// Keep TTSEngine verbosity in sync with settings
-useSettingsStore.subscribe(state => {
-  ttsEngine.setVerbosity(state.verbosity);
+function announceThreats(count: number, maxLevel: ReturnType<typeof getMaxThreatLevel>) {
+  if (count === lastAnnouncedCount) return;
+
+  if (clearTimer) {
+    clearTimeout(clearTimer);
+    clearTimer = null;
+  }
+
+  lastAnnouncedCount = count;
+
+  if (count === 0) {
+    // Debounce "Clear" by 2s — avoids false clears when a car briefly dips to 0
+    clearTimer = setTimeout(() => {
+      const msg = Strings.ttsClear;
+      useRadarStore.getState().setDebugLastAnnouncement(msg);
+      ttsBackend.speak(msg, () => {});
+      clearTimer = null;
+    }, 2000);
+  } else {
+    const verbosity = useSettingsStore.getState().verbosity;
+    const msg = buildAlertMessage(
+      {count, maxLevel, isEscalation: false, isClear: false},
+      verbosity,
+    );
+    useRadarStore.getState().setDebugLastAnnouncement(msg);
+    ttsBackend.speak(msg, () => {});
+  }
+}
+
+// Subscribe to radar store
+useRadarStore.subscribe(state => {
+  announceThreats(state.threats.length, getMaxThreatLevel(state.threats));
+  if (!useSettingsStore.getState().debugMode) {
+    connectionAlertEngine.onStatusChange(state.connectionStatus);
+  }
 });
 
 export default function App(): React.JSX.Element {
@@ -66,12 +92,16 @@ export default function App(): React.JSX.Element {
       if (pairedDevices.length > 0) {
         // Auto-connect to last paired device
         const lastDevice = pairedDevices[pairedDevices.length - 1];
-        connectionAlertEngine.onFirstConnect();
-        bleManager.connect(lastDevice.id).catch(() => {
-          // Connection failed — start reconnect loop
-          bleManager.startReconnectLoop(lastDevice.id);
-        });
-        bleManager.watchBluetoothState(lastDevice.id);
+        bleManager
+          .connect(lastDevice.id)
+          .then(() => {
+            connectionAlertEngine.onFirstConnect();
+            bleManager.watchBluetoothState(lastDevice.id);
+          })
+          .catch(() => {
+            bleManager.startReconnectLoop(lastDevice.id);
+            bleManager.watchBluetoothState(lastDevice.id);
+          });
         setInitialRoute('Main');
       } else {
         setInitialRoute('PairingStep1');
@@ -117,7 +147,6 @@ export default function App(): React.JSX.Element {
               options={{gestureEnabled: false}}>
               {({navigation}) => (
                 <MainScreen
-                  onTestAlert={() => ttsEngine.speakImmediate(Strings.ttsTestAlert)}
                   onSwipeLeft={() => navigation.navigate('Settings')}
                 />
               )}
@@ -134,6 +163,15 @@ export default function App(): React.JSX.Element {
                   onClose={() => navigation.goBack()}
                   onAddDevice={() => {
                     navigation.navigate('PairingStep1');
+                  }}
+                  onRemoveDevice={(deviceId: string) => {
+                    bleManager.disconnect();
+                    useSettingsStore.getState().removePairedDevice(deviceId);
+                    useRadarStore.getState().setConnectionStatus(ConnectionStatus.Disconnected);
+                    useRadarStore.getState().setConnectedDevice(null);
+                    useRadarStore.getState().setThreats([]);
+                    useRadarStore.getState().setBatteryLevel(0);
+                    navigation.reset({index: 0, routes: [{name: 'PairingStep1'}]});
                   }}
                 />
               )}

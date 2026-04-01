@@ -1,69 +1,56 @@
 import Tts from 'react-native-tts';
-import {Platform} from 'react-native';
+import {NativeModules, NativeEventEmitter, Platform} from 'react-native';
 import {ITTSBackend} from './TTSEngine';
+import {useRadarStore} from '../ble/radarStore';
+
+const {VoxTTS} = NativeModules;
 
 /**
- * NativeTTSBackend — wraps react-native-tts for production use.
+ * NativeTTSBackend — production TTS for VoxRider.
  *
- * Audio ducking:
- *  - iOS: AVAudioSession .duckOthers via setIgnoreSilentSwitch('ignore') + iOS audio session config
- *  - Android: AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK via setDucking(true)
+ * On Android we use VoxTTSModule (our custom native module) which calls
+ * TextToSpeech with QUEUE_FLUSH. react-native-tts uses QUEUE_ADD, which
+ * silently stalls after the first utterance on Android 12+ and OEM devices.
  *
- * Volume: maximum (1.0)
- * Rate: slightly slower than default for clarity over wind noise (0.45)
- *
- * Call initialize() once on app start before any speech.
+ * On iOS we use react-native-tts directly (no equivalent issue).
  */
 export class NativeTTSBackend implements ITTSBackend {
-  private currentUtteranceId: string | number | null = null;
-  private onFinishedCallback: (() => void) | null = null;
+  private eventSubscription: ReturnType<NativeEventEmitter['addListener']> | null = null;
 
   async initialize(): Promise<void> {
-    await Tts.getInitStatus();
-
-    if (Platform.OS === 'android') {
-      await Tts.setDucking(true);
+    if (Platform.OS === 'android' && VoxTTS) {
+      // Forward every native TTS lifecycle event to the debug label
+      const emitter = new NativeEventEmitter(VoxTTS);
+      this.eventSubscription = emitter.addListener('VoxTTSEvent', (msg: string) => {
+        // Use a separate field so VoxTTS events don't trigger the main
+        // store subscription that runs announceThreats
+        useRadarStore.getState().setDebugTTSLog(msg);
+      });
     } else {
-      // iOS: ignore silent switch so radar alerts always play
+      await Tts.getInitStatus();
       await Tts.setIgnoreSilentSwitch('ignore');
+      await Tts.setDefaultRate(0.45);
     }
-
-    await Tts.setDefaultRate(0.45);
-
-    // Wire TTS events
-    Tts.addEventListener('tts-finish', this._handleFinish);
-    Tts.addEventListener('tts-cancel', this._handleFinish);
-    Tts.addEventListener('tts-error', this._handleFinish);
   }
 
   destroy(): void {
-    Tts.removeEventListener('tts-finish', this._handleFinish);
-    Tts.removeEventListener('tts-cancel', this._handleFinish);
-    Tts.removeEventListener('tts-error', this._handleFinish);
+    this.eventSubscription?.remove();
   }
 
-  speak(utterance: string, onFinished: () => void): void {
-    // Cancel any in-progress speech first (speak() on Android queues by default)
-    Tts.stop();
-    this.onFinishedCallback = onFinished;
-    this.currentUtteranceId = Tts.speak(utterance);
+  speak(utterance: string, _onFinished: () => void): void {
+    if (Platform.OS === 'android') {
+      VoxTTS?.speak(utterance);
+    } else {
+      Tts.stop();
+      Tts.speak(utterance);
+    }
   }
 
   stop(): void {
-    this.onFinishedCallback = null;
-    this.currentUtteranceId = null;
-    Tts.stop();
-  }
-
-  private _handleFinish = (event: {utteranceId: string | number}): void => {
-    if (
-      this.currentUtteranceId !== null &&
-      event.utteranceId === this.currentUtteranceId
-    ) {
-      const cb = this.onFinishedCallback;
-      this.currentUtteranceId = null;
-      this.onFinishedCallback = null;
-      cb?.();
+    if (Platform.OS === 'android') {
+      VoxTTS?.stop();
+    } else {
+      Tts.stop();
     }
-  };
+  }
 }

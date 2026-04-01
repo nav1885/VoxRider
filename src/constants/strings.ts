@@ -74,8 +74,4 @@ export const Strings = {
   settingsNoPairedDevices: 'No devices paired',
   settingsAddDevice: 'Add Device',
   settingsRemoveDevice: 'Remove',
-
-  // Test alert
-  testAlertButton: 'Test Alert',
-  ttsTestAlert: 'Test — 1 vehicle, high speed',
 };
