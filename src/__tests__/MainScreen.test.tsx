@@ -26,7 +26,6 @@ beforeEach(() => {
     consecutiveFailures: 0,
   });
   useSettingsStore.setState({
-    sidebarPosition: 'left',
     verbosity: AlertVerbosity.Detailed,
     units: 'imperial',
     pairedDevices: [],
@@ -35,10 +34,16 @@ beforeEach(() => {
 
 describe('MainScreen', () => {
   describe('connection status', () => {
-    it('shows "Searching..." when scanning', () => {
+    it('shows "Searching…" device label when scanning', () => {
       useRadarStore.setState({connectionStatus: ConnectionStatus.Scanning});
       const {getByTestId} = render(<MainScreen  />, {wrapper: Wrapper});
-      expect(getByTestId('connection-status').props.children).toBe('Searching...');
+      expect(getByTestId('connection-device').props.children).toBe('Searching\u2026');
+    });
+
+    it('shows "Radar" status when scanning', () => {
+      useRadarStore.setState({connectionStatus: ConnectionStatus.Scanning});
+      const {getByTestId} = render(<MainScreen  />, {wrapper: Wrapper});
+      expect(getByTestId('connection-status').props.children).toBe('Radar');
     });
 
     it('shows device name when connected', () => {
@@ -47,18 +52,20 @@ describe('MainScreen', () => {
         connectedDevice: {id: 'abc', name: 'RTL64894', rssi: -60},
       });
       const {getByTestId} = render(<MainScreen  />, {wrapper: Wrapper});
-      expect(getByTestId('connection-status').props.children).toBe('Connected · RTL64894');
+      expect(getByTestId('connection-device').props.children).toBe('RTL64894');
+      expect(getByTestId('connection-status').props.children).toBe('Connected');
     });
   });
 
-  describe('threat state', () => {
-    it('shows "Clear" when no threats', () => {
+  describe('threat banner', () => {
+    it('renders "All Clear" text when no threats (banner hidden until first threat)', () => {
       useRadarStore.setState({connectionStatus: ConnectionStatus.Connected, threats: []});
       const {getByTestId} = render(<MainScreen  />, {wrapper: Wrapper});
-      expect(getByTestId('threat-label').props.children).toBe('Clear');
+      // Banner is hidden on initial clear state — but the text node is still rendered
+      expect(getByTestId('threat-label').props.children).toBe('All Clear');
     });
 
-    it('shows vehicle count and closest distance (imperial)', () => {
+    it('shows warning with count and medium speed for medium threats', () => {
       useRadarStore.setState({
         connectionStatus: ConnectionStatus.Connected,
         threats: [
@@ -67,34 +74,25 @@ describe('MainScreen', () => {
         ],
       });
       const {getByTestId} = render(<MainScreen  />, {wrapper: Wrapper});
-      // 40m → ~131ft
-      expect(getByTestId('threat-label').props.children).toBe('2 vehicles · 131ft');
+      expect(getByTestId('threat-label').props.children).toBe(
+        'Warning: 2 vehicles approaching, medium speed',
+      );
     });
 
-    it('shows vehicle count and distance in metric', () => {
-      useSettingsStore.setState({
-        sidebarPosition: 'left',
-        verbosity: AlertVerbosity.Detailed,
-        units: 'metric',
-        pairedDevices: [],
-      });
+    it('shows warning with high speed for high threats', () => {
       useRadarStore.setState({
         connectionStatus: ConnectionStatus.Connected,
-        threats: [{speed: 12, distance: 80, level: ThreatLevel.Medium}],
+        threats: [{speed: 22, distance: 60, level: ThreatLevel.High}],
       });
       const {getByTestId} = render(<MainScreen  />, {wrapper: Wrapper});
-      expect(getByTestId('threat-label').props.children).toBe('1 vehicle · 80m');
+      expect(getByTestId('threat-label').props.children).toBe(
+        'Warning: 1 vehicle approaching, high speed',
+      );
     });
   });
 
   describe('battery', () => {
-    it('hides battery bar when batteryLevel is null', () => {
-      const {queryByTestId} = render(<MainScreen  />, {wrapper: Wrapper});
-      expect(queryByTestId('battery-row')).toBeNull();
-    });
-
-    it('shows battery bar when level is available', () => {
-      useRadarStore.setState({batteryLevel: 75});
+    it('shows battery row (always in header)', () => {
       const {getByTestId} = render(<MainScreen  />, {wrapper: Wrapper});
       expect(getByTestId('battery-row')).toBeTruthy();
     });
@@ -108,7 +106,7 @@ describe('MainScreen', () => {
       );
     });
 
-    it('renders battery bar default color at 11%', () => {
+    it('renders battery bar green at 11%', () => {
       useRadarStore.setState({batteryLevel: 11});
       const {getByTestId} = render(<MainScreen  />, {wrapper: Wrapper});
       const bar = getByTestId('battery-bar');

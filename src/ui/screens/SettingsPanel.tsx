@@ -10,7 +10,7 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useSettingsStore} from '../../settings/settingsStore';
 import {AlertVerbosity} from '../../alerts/types';
-import {SidebarPosition, Units} from '../../settings/types';
+import {Units} from '../../settings/types';
 import {Strings} from '../../constants/strings';
 
 interface Props {
@@ -23,11 +23,9 @@ export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): Re
   const isDark = useColorScheme() === 'dark';
   const insets = useSafeAreaInsets();
 
-  const sidebarPosition = useSettingsStore(s => s.sidebarPosition);
   const verbosity = useSettingsStore(s => s.verbosity);
   const units = useSettingsStore(s => s.units);
   const pairedDevices = useSettingsStore(s => s.pairedDevices);
-  const setSidebarPosition = useSettingsStore(s => s.setSidebarPosition);
   const setVerbosity = useSettingsStore(s => s.setVerbosity);
   const setUnits = useSettingsStore(s => s.setUnits);
   const removePairedDevice = useSettingsStore(s => s.removePairedDevice);
@@ -47,29 +45,8 @@ export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): Re
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, {paddingBottom: insets.bottom + 40}]}>
-        {/* Sidebar Position */}
-        <Text style={labelStyle}>{Strings.settingsSidebarPosition}</Text>
-        <View style={styles.segmentRow} testID="sidebar-position-control">
-          {(['left', 'right'] as SidebarPosition[]).map(pos => (
-            <TouchableOpacity
-              key={pos}
-              testID={`sidebar-${pos}`}
-              accessibilityState={{selected: sidebarPosition === pos}}
-              style={[styles.segment, sidebarPosition === pos && styles.segmentActive]}
-              onPress={() => setSidebarPosition(pos)}>
-              <Text
-                style={[
-                  styles.segmentText,
-                  sidebarPosition === pos && styles.segmentTextActive,
-                ]}>
-                {pos === 'left' ? Strings.settingsSidebarLeft : Strings.settingsSidebarRight}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
         {/* Alert Verbosity */}
-        <Text style={[labelStyle, styles.sectionSpacing]}>{Strings.settingsVerbosity}</Text>
+        <Text style={labelStyle}>{Strings.settingsVerbosity}</Text>
         <View style={styles.segmentRow} testID="verbosity-control">
           {([AlertVerbosity.Detailed, AlertVerbosity.Balanced, AlertVerbosity.Minimal] as AlertVerbosity[]).map(v => (
             <TouchableOpacity

@@ -109,7 +109,7 @@ export class DebugSimulator {
       VEHICLE_TEMPLATES[Math.floor(Math.random() * VEHICLE_TEMPLATES.length)];
     this.vehicles.push({
       id: this.nextId++,
-      distance: rand(200, 255),
+      distance: rand(100, 130),
       speed: template.speed,
       level: template.level,
     });

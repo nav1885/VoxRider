@@ -32,6 +32,11 @@ export const Strings = {
   clear: 'Clear',
   vehiclesDisplay: (count: number, distance: string) => `${count > 1 ? `${count} vehicles` : '1 vehicle'} · ${distance}`,
 
+  // Threat banner
+  bannerClear: 'All Clear',
+  bannerWarning: (count: number, speedLabel: string) =>
+    `Warning: ${count === 1 ? '1 vehicle' : `${count} vehicles`} approaching, ${speedLabel} speed`,
+
   // Pairing flow
   pairingStep1Title: 'Turn on your Varia',
   pairingStep1Instruction: 'Turn on your Varia',

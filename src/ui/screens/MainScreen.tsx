@@ -1,5 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {
+  Animated,
   View,
   Text,
   TouchableOpacity,
@@ -12,10 +13,12 @@ import {useRadarStore} from '../../ble/radarStore';
 import {useSettingsStore} from '../../settings/settingsStore';
 import {ConnectionStatus, ThreatLevel} from '../../ble/types';
 import {getMaxThreatLevel} from '../../ble/parseRadarPacket';
-import {RadarStrip} from '../components/RadarStrip';
-import {formatDistance} from '../../settings/formatDistance';
+import {RoadView} from '../components/RoadView';
 import {Strings} from '../../constants/strings';
 import {DebugSimulator} from '../../debug/DebugSimulator';
+import {AppHeader} from '../components/AppHeader';
+
+const BANNER_AUTO_DISMISS_MS = 5000;
 
 interface Props {
   onSwipeLeft?: () => void;
@@ -31,8 +34,6 @@ export function MainScreen({onSwipeLeft}: Props): React.JSX.Element {
   const batteryLevel = useRadarStore(s => s.batteryLevel);
   const consecutiveFailures = useRadarStore(s => s.consecutiveFailures);
 
-  const sidebarPosition = useSettingsStore(s => s.sidebarPosition);
-  const units = useSettingsStore(s => s.units);
   const debugMode = useSettingsStore(s => s.debugMode);
   const debugLastAnnouncement = useRadarStore(s => s.debugLastAnnouncement);
   const debugTTSLog = useRadarStore(s => s.debugTTSLog);
@@ -44,41 +45,68 @@ export function MainScreen({onSwipeLeft}: Props): React.JSX.Element {
     return () => sim.stop();
   }, []);
 
-  const isConnected = connectionStatus === ConnectionStatus.Connected;
   const maxLevel = getMaxThreatLevel(threats);
+  const isClear = threats.length === 0;
+  const isHigh = maxLevel === ThreatLevel.High;
   const showConflictHint = consecutiveFailures >= 3;
 
-  // Connection status line
-  const connectionLabel =
-    isConnected && connectedDevice
-      ? Strings.connected(connectedDevice.name)
-      : connectionStatus === ConnectionStatus.Scanning ||
-          connectionStatus === ConnectionStatus.Reconnecting
-        ? Strings.searching
-        : Strings.disconnected;
+  // ── Banner content ────────────────────────────────────────────────────────
+  const bannerMessage = isClear
+    ? Strings.bannerClear
+    : Strings.bannerWarning(
+        threats.length,
+        isHigh ? Strings.speedHigh : Strings.speedMedium,
+      );
 
-  // Center threat display
-  const threatLabel =
-    threats.length === 0
-      ? Strings.clear
-      : Strings.vehiclesDisplay(
-          threats.length,
-          formatDistance(Math.min(...threats.map(t => t.distance)), units),
-        );
+  const bannerBg = isClear ? '#16A34A' : isHigh ? '#DC2626' : '#D97706';
 
-  const threatColor =
-    threats.length === 0
-      ? (isDark ? '#16A34A' : '#22C55E')
-      : maxLevel === ThreatLevel.High
-        ? (isDark ? '#DC2626' : '#EF4444')
-        : (isDark ? '#EA6B0D' : '#F97316');
+  // ── Banner animation ──────────────────────────────────────────────────────
+  // Hidden on mount. Shows only when:
+  //   • A threat appears / changes (yellow/red)
+  //   • Threats just cleared after having been active (green "All Clear", 5 s)
+  const bannerOpacity = useRef(new Animated.Value(0)).current;
+  const bannerSlide = useRef(new Animated.Value(-12)).current;
+  const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevThreatCount = useRef(0);
 
-  // Battery bar
-  const showBattery = batteryLevel !== null;
-  const batteryLow = batteryLevel !== null && batteryLevel <= 10;
+  useEffect(() => {
+    const prev = prevThreatCount.current;
+    const curr = threats.length;
+    prevThreatCount.current = curr;
 
-  const mainPadding = sidebarPosition === 'left' ? {paddingLeft: 52} : {paddingRight: 52};
+    const wasActive = prev > 0;
+    const isActive = curr > 0;
 
+    // Don't show on initial render when already clear
+    if (!isActive && !wasActive) return;
+
+    // Cancel any pending dismiss and slide banner back in
+    if (dismissTimer.current) {
+      clearTimeout(dismissTimer.current);
+      dismissTimer.current = null;
+    }
+    bannerOpacity.stopAnimation();
+    bannerSlide.stopAnimation();
+    Animated.parallel([
+      Animated.timing(bannerOpacity, {toValue: 1, duration: 220, useNativeDriver: true}),
+      Animated.timing(bannerSlide, {toValue: 0, duration: 220, useNativeDriver: true}),
+    ]).start();
+
+    // Always auto-dismiss after 5 s (both threat and clear banners)
+    dismissTimer.current = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(bannerOpacity, {toValue: 0, duration: 380, useNativeDriver: true}),
+        Animated.timing(bannerSlide, {toValue: -12, duration: 380, useNativeDriver: true}),
+      ]).start();
+    }, BANNER_AUTO_DISMISS_MS);
+
+    return () => {
+      if (dismissTimer.current) clearTimeout(dismissTimer.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threats.length, maxLevel]);
+
+  // ── Swipe gesture ─────────────────────────────────────────────────────────
   const swipeGesture = Gesture.Pan()
     .runOnJS(true)
     .onEnd(e => {
@@ -89,166 +117,133 @@ export function MainScreen({onSwipeLeft}: Props): React.JSX.Element {
 
   return (
     <GestureDetector gesture={swipeGesture}>
-    <View style={[styles.container, isDark && styles.containerDark]} testID="main-screen">
-      <RadarStrip threats={threats} position={sidebarPosition} />
+      <View style={[styles.container, isDark && styles.containerDark]} testID="main-screen">
+        <View style={[styles.main, {paddingTop: insets.top + 8, paddingBottom: insets.bottom + 16}]}>
 
-      <View style={[styles.main, mainPadding, {paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24}]}>
-        {/* Connection status */}
-        <View testID="connection-status-row">
-          <Text style={[styles.connectionStatus, isDark && styles.textDark]} testID="connection-status">
-            {connectionLabel}
-          </Text>
+          {/* ── Permanent header ── */}
+          <AppHeader
+            connectionStatus={connectionStatus}
+            deviceName={connectedDevice?.name ?? null}
+            batteryLevel={batteryLevel}
+          />
+
+          {/* ── Threat banner — full width, auto-dismisses after 5 s for threats ── */}
+          <Animated.View
+            style={[
+              styles.banner,
+              {
+                backgroundColor: bannerBg,
+                opacity: bannerOpacity,
+                transform: [{translateY: bannerSlide}],
+              },
+            ]}>
+            <Text style={styles.bannerIcon}>
+              {isClear ? '✓' : '⚠'}
+            </Text>
+            <Text testID="threat-label" style={styles.bannerText} numberOfLines={1} adjustsFontSizeToFit>
+              {bannerMessage}
+            </Text>
+          </Animated.View>
+
+          {/* ── Road visualization ── */}
+          <View style={styles.roadSection}>
+            <RoadView threats={threats} />
+          </View>
+
+          {/* ── Conflict hint ── */}
           {showConflictHint && (
-            <View testID="conflict-hint" style={styles.conflictBanner}>
+            <View testID="conflict-hint" style={[styles.conflictBanner, {marginHorizontal: 16, marginBottom: 6}]}>
               <Text style={styles.conflictText}>{Strings.conflictHint}</Text>
             </View>
           )}
-        </View>
 
-        {/* Center: threat state */}
-        <View style={styles.centerContent}>
-          <Text
-            testID="threat-label"
-            style={[styles.threatLabel, {color: threatColor}]}>
-            {threatLabel}
-          </Text>
-        </View>
-
-        {/* Battery */}
-        {showBattery && (
-          <View testID="battery-row" style={styles.batteryRow}>
-            <View style={styles.batteryBarOuter}>
-              <View
-                testID="battery-bar"
-                style={[
-                  styles.batteryBarInner,
-                  {
-                    width: `${batteryLevel}%`,
-                    backgroundColor: batteryLow ? '#EF4444' : (isDark ? '#9CA3AF' : '#6B7280'),
-                  },
-                ]}
-              />
+          {/* ── Debug section ── */}
+          {debugMode && (
+            <View style={styles.debugSection}>
+              {debugLastAnnouncement !== '' && (
+                <Text style={styles.debugAnnounced}>
+                  announced: "{debugLastAnnouncement}"
+                </Text>
+              )}
+              {debugTTSLog !== '' && (
+                <Text style={styles.debugTTS}>{debugTTSLog}</Text>
+              )}
+              <TouchableOpacity
+                testID="debug-simulate-button"
+                style={[styles.simButton, {backgroundColor: simRunning ? '#DC2626' : '#16A34A'}]}
+                onPress={() => {
+                  const sim = simulatorRef.current;
+                  if (sim.isRunning()) {
+                    sim.stop();
+                    setSimRunning(false);
+                  } else {
+                    sim.start();
+                    setSimRunning(true);
+                  }
+                }}>
+                <Text style={styles.simButtonText}>
+                  {simRunning ? 'Stop Simulation' : 'Simulate Threats'}
+                </Text>
+              </TouchableOpacity>
             </View>
-            <Text style={[styles.batteryText, isDark && styles.textDark]}>
-              {batteryLevel}%
-            </Text>
-          </View>
-        )}
+          )}
 
-        {/* Debug TTS indicator */}
-        {debugMode && (
-          <View style={{marginBottom: 4}}>
-            {debugLastAnnouncement !== '' && (
-              <Text style={{color: '#6B7280', fontSize: 12, textAlign: 'center'}}>
-                announced: "{debugLastAnnouncement}"
-              </Text>
-            )}
-            {debugTTSLog !== '' && (
-              <Text style={{color: '#9CA3AF', fontSize: 10, textAlign: 'center'}}>
-                {debugTTSLog}
-              </Text>
-            )}
-          </View>
-        )}
-
-        {/* Debug Simulate */}
-        {debugMode && (
-          <TouchableOpacity
-            testID="debug-simulate-button"
-            style={[styles.simButton, {backgroundColor: simRunning ? '#DC2626' : '#16A34A', marginBottom: 10}]}
-            onPress={() => {
-              const sim = simulatorRef.current;
-              if (sim.isRunning()) {
-                sim.stop();
-                setSimRunning(false);
-              } else {
-                sim.start();
-                setSimRunning(true);
-              }
-            }}>
-            <Text style={styles.simButtonText}>
-              {simRunning ? 'Stop Simulation' : 'Simulate Threats'}
-            </Text>
-          </TouchableOpacity>
-        )}
-
+        </View>
       </View>
-    </View>
     </GestureDetector>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  containerDark: {
-    backgroundColor: '#111827',
-  },
-  main: {
-    flex: 1,
-    paddingHorizontal: 16,
-    justifyContent: 'space-between',
-  },
-  connectionStatus: {
-    fontSize: 14,
-    color: '#374151',
-  },
-  textDark: {
-    color: '#D1D5DB',
-  },
-  conflictBanner: {
-    marginTop: 6,
-    backgroundColor: '#FEF3C7',
-    borderRadius: 6,
-    padding: 8,
-  },
-  conflictText: {
-    fontSize: 13,
-    color: '#92400E',
-  },
-  centerContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  threatLabel: {
-    fontSize: 36,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  batteryRow: {
+  container: {flex: 1, backgroundColor: '#FFFFFF'},
+  containerDark: {backgroundColor: '#111827'},
+
+  main: {flex: 1},
+
+  // ── Banner ──
+  banner: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 16,
+    marginBottom: 10,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     gap: 8,
-    marginBottom: 16,
+    // Fixed height so the road view doesn't shift when banner fades
+    minHeight: 52,
   },
-  batteryBarOuter: {
-    flex: 1,
-    height: 6,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  batteryBarInner: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  batteryText: {
-    fontSize: 12,
-    color: '#6B7280',
-    minWidth: 36,
-    textAlign: 'right',
-  },
-  simButton: {
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  simButtonText: {
+  bannerIcon: {
+    fontSize: 18,
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
+  bannerText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+
+  // ── Road ──
+  roadSection: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+
+  conflictBanner: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 6,
+    padding: 6,
+  },
+  conflictText: {fontSize: 12, color: '#92400E'},
+
+  // ── Debug ──
+  debugSection: {marginTop: 10, gap: 6, paddingHorizontal: 20},
+  debugAnnounced: {color: '#6B7280', fontSize: 12, textAlign: 'center'},
+  debugTTS: {color: '#9CA3AF', fontSize: 10, textAlign: 'center'},
+  simButton: {borderRadius: 10, paddingVertical: 14, alignItems: 'center'},
+  simButtonText: {color: '#FFFFFF', fontSize: 16, fontWeight: '600'},
 });

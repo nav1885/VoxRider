@@ -15,7 +15,6 @@ function Wrapper({children}: {children: React.ReactNode}) {
 
 beforeEach(() => {
   useSettingsStore.setState({
-    sidebarPosition: 'left',
     verbosity: AlertVerbosity.Detailed,
     units: 'imperial',
     pairedDevices: [],
@@ -24,20 +23,6 @@ beforeEach(() => {
 
 describe('SettingsPanel', () => {
   const noop = jest.fn();
-
-  describe('sidebar position', () => {
-    it('renders with left selected by default', () => {
-      const {getByTestId} = render(<SettingsPanel onClose={noop} onAddDevice={noop} onRemoveDevice={noop} />, {wrapper: Wrapper});
-      expect(getByTestId('sidebar-left').props.accessibilityState?.selected).toBe(true);
-      expect(getByTestId('sidebar-right').props.accessibilityState?.selected).toBe(false);
-    });
-
-    it('switches to right when tapped', () => {
-      const {getByTestId} = render(<SettingsPanel onClose={noop} onAddDevice={noop} onRemoveDevice={noop} />, {wrapper: Wrapper});
-      fireEvent.press(getByTestId('sidebar-right'));
-      expect(useSettingsStore.getState().sidebarPosition).toBe('right');
-    });
-  });
 
   describe('verbosity', () => {
     it('renders Detailed as default selected', () => {
@@ -70,7 +55,6 @@ describe('SettingsPanel', () => {
 
     it('shows device rows when devices are paired', () => {
       useSettingsStore.setState({
-        sidebarPosition: 'left',
         verbosity: AlertVerbosity.Detailed,
         units: 'imperial',
         pairedDevices: [{id: 'abc123', name: 'RTL64894', rssi: -60}],
@@ -85,7 +69,6 @@ describe('SettingsPanel', () => {
 
     it('calls onRemoveDevice when Remove tapped', () => {
       useSettingsStore.setState({
-        sidebarPosition: 'left',
         verbosity: AlertVerbosity.Detailed,
         units: 'imperial',
         pairedDevices: [{id: 'abc123', name: 'RTL64894', rssi: -60}],
