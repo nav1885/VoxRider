@@ -133,12 +133,12 @@ describe('MainScreen', () => {
       expect(onTestAlert).toHaveBeenCalledTimes(1);
     });
 
-    it('is disabled when not connected', () => {
+    it('calls onTestAlert even when disconnected', () => {
       useRadarStore.setState({connectionStatus: ConnectionStatus.Disconnected});
       const onTestAlert = jest.fn();
       const {getByTestId} = render(<MainScreen onTestAlert={onTestAlert} />);
-      const btn = getByTestId('test-alert-button');
-      expect(btn.props.accessibilityState?.disabled).toBe(true);
+      fireEvent.press(getByTestId('test-alert-button'));
+      expect(onTestAlert).toHaveBeenCalledTimes(1);
     });
   });
 });

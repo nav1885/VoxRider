@@ -127,9 +127,8 @@ export function MainScreen({onTestAlert, onSwipeLeft}: Props): React.JSX.Element
         {/* Test Alert */}
         <TouchableOpacity
           testID="test-alert-button"
-          style={[styles.testAlertButton, !isConnected && styles.testAlertButtonDisabled]}
-          onPress={onTestAlert}
-          disabled={!isConnected}>
+          style={styles.testAlertButton}
+          onPress={onTestAlert}>
           <Text style={styles.testAlertText}>{Strings.testAlertButton}</Text>
         </TouchableOpacity>
       </View>

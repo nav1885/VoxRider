@@ -15,7 +15,7 @@ import {MockBLEManager} from './src/ble/MockBLEManager';
 import {DeviceInfo} from './src/ble/types';
 import {AlertEngine} from './src/alerts/AlertEngine';
 import {TTSEngine} from './src/alerts/TTSEngine';
-import {NoOpTTSBackend} from './src/alerts/NoOpTTSBackend';
+import {NativeTTSBackend} from './src/alerts/NativeTTSBackend';
 import {ConnectionAlertEngine} from './src/alerts/ConnectionAlertEngine';
 import {AlertVerbosity} from './src/alerts/types';
 import {Strings} from './src/constants/strings';
@@ -32,8 +32,8 @@ const Stack = createStackNavigator<RootStackParamList>();
 // Using MockBLEManager until RealBLEManager is implemented (M1 native tasks)
 const bleManager = new MockBLEManager();
 
-// Alert + TTS pipeline — NoOpTTSBackend until react-native-tts native integration (TASK-023)
-const ttsBackend = new NoOpTTSBackend();
+// Alert + TTS pipeline — NativeTTSBackend wraps react-native-tts
+const ttsBackend = new NativeTTSBackend();
 const alertEngine = new AlertEngine(() => {});
 const ttsEngine = new TTSEngine(ttsBackend, alertEngine, AlertVerbosity.Detailed);
 const connectionAlertEngine = new ConnectionAlertEngine(msg =>
@@ -60,6 +60,7 @@ export default function App(): React.JSX.Element {
 
   useEffect(() => {
     const init = async () => {
+      await ttsBackend.initialize();
       await loadSettings();
       const {pairedDevices} = useSettingsStore.getState();
       setInitialRoute(pairedDevices.length > 0 ? 'Main' : 'PairingStep1');
