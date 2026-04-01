@@ -7,8 +7,8 @@ import {
   FlatList,
   StyleSheet,
   useColorScheme,
-  SafeAreaView,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {DeviceInfo, IBLEManager} from '../../ble/types';
 import {Strings} from '../../constants/strings';
 import {useBluetoothPermission} from '../../permissions/useBluetoothPermission';
@@ -25,6 +25,7 @@ interface Props {
 
 export function PairingStep2({bleManager, onConnected}: Props): React.JSX.Element {
   const isDark = useColorScheme() === 'dark';
+  const insets = useSafeAreaInsets();
   const [scanState, setScanState] = useState<ScanState>('scanning');
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -93,10 +94,10 @@ export function PairingStep2({bleManager, onConnected}: Props): React.JSX.Elemen
   const textStyle = isDark ? styles.textDark : styles.text;
 
   return (
-    <SafeAreaView
+    <View
       style={[styles.container, isDark && styles.containerDark]}
       testID="pairing-step2">
-      <View style={styles.content}>
+      <View style={[styles.content, {paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40}]}>
         <Text style={styles.progress} testID="step-progress">
           {Strings.pairingStep2Progress}
         </Text>
@@ -167,7 +168,7 @@ export function PairingStep2({bleManager, onConnected}: Props): React.JSX.Elemen
           />
         )}
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -177,8 +178,6 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 40,
   },
   progress: {fontSize: 13, color: '#9CA3AF', marginBottom: 8},
   title: {

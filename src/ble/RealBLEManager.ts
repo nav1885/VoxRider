@@ -47,6 +47,19 @@ export class RealBLEManager implements IBLEManager {
   // ---------------------------------------------------------------------------
 
   async scan(): Promise<DeviceInfo[]> {
+    // Stop any in-progress reconnect and disconnect before scanning
+    this._cancelReconnect();
+    this._unsubscribeAll();
+    if (this.connectedDeviceId) {
+      try {
+        await this.bleManager.cancelDeviceConnection(this.connectedDeviceId);
+      } catch {
+        // Ignore — may not be connected
+      }
+      this.connectedDeviceId = null;
+    }
+    this.bleManager.stopDeviceScan();
+
     const discovered = new Map<string, DeviceInfo>();
 
     return new Promise((resolve, reject) => {
@@ -82,6 +95,9 @@ export class RealBLEManager implements IBLEManager {
   // ---------------------------------------------------------------------------
 
   async connect(deviceId: string): Promise<void> {
+    // Clean up any stale subscriptions from a previous connection
+    this._unsubscribeAll();
+
     const {setConnectionStatus, setConnectedDevice, resetFailures, incrementFailures} =
       useRadarStore.getState();
 

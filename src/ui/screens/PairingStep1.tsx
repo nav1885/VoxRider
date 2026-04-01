@@ -5,8 +5,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   useColorScheme,
-  SafeAreaView,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {Strings} from '../../constants/strings';
 
 interface Props {
@@ -15,43 +15,33 @@ interface Props {
 
 export function PairingStep1({onSearch}: Props): React.JSX.Element {
   const isDark = useColorScheme() === 'dark';
+  const insets = useSafeAreaInsets();
 
   return (
-    <SafeAreaView
+    <View
       style={[styles.container, isDark && styles.containerDark]}
       testID="pairing-step1">
-      <View style={styles.content}>
+      <View style={[styles.content, {paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40}]}>
         <Text style={styles.progress} testID="step-progress">
           {Strings.pairingStep1Progress}
         </Text>
 
-        {/* Varia device illustration */}
+        {/* Varia device illustration + Search button */}
         <View style={styles.illustrationContainer} testID="varia-illustration">
           <View style={styles.variaBody}>
             <View style={styles.variaLight} />
           </View>
           <Text style={[styles.variaLabel, isDark && styles.textDark]}>Varia Radar</Text>
+
+          <TouchableOpacity
+            testID="search-button"
+            style={styles.button}
+            onPress={onSearch}>
+            <Text style={styles.buttonText}>{Strings.pairingStep1Button}</Text>
+          </TouchableOpacity>
         </View>
-
-        <Text
-          style={[styles.title, isDark && styles.textDark]}
-          testID="step-title">
-          {Strings.pairingStep1Title}
-        </Text>
-        <Text
-          style={[styles.instruction, isDark && styles.textDim]}
-          testID="step-instruction">
-          {Strings.pairingStep1Instruction}
-        </Text>
-
-        <TouchableOpacity
-          testID="search-button"
-          style={styles.button}
-          onPress={onSearch}>
-          <Text style={styles.buttonText}>{Strings.pairingStep1Button}</Text>
-        </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -61,10 +51,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 32,
-    paddingTop: 24,
-    paddingBottom: 40,
     alignItems: 'center',
-    justifyContent: 'space-between',
   },
   progress: {
     fontSize: 13,
@@ -95,28 +82,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#374151',
   },
-  title: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#111827',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  instruction: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 32,
-  },
   textDark: {color: '#F9FAFB'},
-  textDim: {color: '#9CA3AF'},
   button: {
-    width: '100%',
-    backgroundColor: '#111827',
+    width: 200,
+    backgroundColor: '#16A34A',
     borderRadius: 12,
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
+    marginTop: 24,
   },
   buttonText: {
     color: '#FFFFFF',

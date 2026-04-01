@@ -6,8 +6,8 @@ import {
   ScrollView,
   StyleSheet,
   useColorScheme,
-  SafeAreaView,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useSettingsStore} from '../../settings/settingsStore';
 import {AlertVerbosity} from '../../alerts/types';
 import {SidebarPosition, Units} from '../../settings/types';
@@ -16,10 +16,12 @@ import {Strings} from '../../constants/strings';
 interface Props {
   onClose: () => void;
   onAddDevice: () => void;
+  onRemoveDevice: (deviceId: string) => void;
 }
 
-export function SettingsPanel({onClose, onAddDevice}: Props): React.JSX.Element {
+export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): React.JSX.Element {
   const isDark = useColorScheme() === 'dark';
+  const insets = useSafeAreaInsets();
 
   const sidebarPosition = useSettingsStore(s => s.sidebarPosition);
   const verbosity = useSettingsStore(s => s.verbosity);
@@ -29,20 +31,22 @@ export function SettingsPanel({onClose, onAddDevice}: Props): React.JSX.Element 
   const setVerbosity = useSettingsStore(s => s.setVerbosity);
   const setUnits = useSettingsStore(s => s.setUnits);
   const removePairedDevice = useSettingsStore(s => s.removePairedDevice);
+  const debugMode = useSettingsStore(s => s.debugMode);
+  const setDebugMode = useSettingsStore(s => s.setDebugMode);
 
   const textStyle = [styles.text, isDark && styles.textDark];
   const labelStyle = [styles.sectionLabel, isDark && styles.textDim];
   const containerStyle = [styles.container, isDark && styles.containerDark];
 
   return (
-    <SafeAreaView style={containerStyle} testID="settings-panel">
-      <View style={styles.header}>
+    <View style={containerStyle} testID="settings-panel">
+      <View style={[styles.header, {paddingTop: insets.top + 12}]}>
         <TouchableOpacity testID="settings-close" onPress={onClose}>
           <Text style={[styles.closeButton, isDark && styles.textDark]}>✕</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, {paddingBottom: insets.bottom + 40}]}>
         {/* Sidebar Position */}
         <Text style={labelStyle}>{Strings.settingsSidebarPosition}</Text>
         <View style={styles.segmentRow} testID="sidebar-position-control">
@@ -121,21 +125,44 @@ export function SettingsPanel({onClose, onAddDevice}: Props): React.JSX.Element 
               </View>
               <TouchableOpacity
                 testID={`remove-device-${device.id}`}
-                onPress={() => removePairedDevice(device.id)}>
+                onPress={() => onRemoveDevice(device.id)}>
                 <Text style={styles.removeText}>{Strings.settingsRemoveDevice}</Text>
               </TouchableOpacity>
             </View>
           ))
         )}
 
-        <TouchableOpacity
-          testID="add-device-button"
-          style={styles.addDeviceButton}
-          onPress={onAddDevice}>
-          <Text style={styles.addDeviceText}>{Strings.settingsAddDevice}</Text>
-        </TouchableOpacity>
+        {pairedDevices.length === 0 && (
+          <TouchableOpacity
+            testID="add-device-button"
+            style={styles.addDeviceButton}
+            onPress={onAddDevice}>
+            <Text style={styles.addDeviceText}>{Strings.settingsAddDevice}</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Debug Mode */}
+        <Text style={[labelStyle, styles.sectionSpacing]}>DEBUG</Text>
+        <View style={styles.segmentRow} testID="debug-mode-control">
+          {(['off', 'on'] as const).map(val => (
+            <TouchableOpacity
+              key={val}
+              testID={`debug-${val}`}
+              accessibilityState={{selected: val === 'on' ? debugMode : !debugMode}}
+              style={[styles.segment, (val === 'on' ? debugMode : !debugMode) && styles.segmentActive]}
+              onPress={() => setDebugMode(val === 'on')}>
+              <Text
+                style={[
+                  styles.segmentText,
+                  (val === 'on' ? debugMode : !debugMode) && styles.segmentTextActive,
+                ]}>
+                {val === 'on' ? 'On' : 'Off'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -144,12 +171,11 @@ const styles = StyleSheet.create({
   containerDark: {backgroundColor: '#111827'},
   header: {
     paddingHorizontal: 20,
-    paddingTop: 12,
     paddingBottom: 8,
     alignItems: 'flex-end',
   },
   closeButton: {fontSize: 18, color: '#374151', padding: 4},
-  content: {paddingHorizontal: 20, paddingBottom: 40},
+  content: {paddingHorizontal: 20},
   sectionLabel: {
     fontSize: 12,
     fontWeight: '600',

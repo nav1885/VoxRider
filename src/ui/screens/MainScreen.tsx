@@ -1,12 +1,12 @@
-import React from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   useColorScheme,
-  SafeAreaView,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import {useRadarStore} from '../../ble/radarStore';
 import {useSettingsStore} from '../../settings/settingsStore';
@@ -15,14 +15,15 @@ import {getMaxThreatLevel} from '../../ble/parseRadarPacket';
 import {RadarStrip} from '../components/RadarStrip';
 import {formatDistance} from '../../settings/formatDistance';
 import {Strings} from '../../constants/strings';
+import {DebugSimulator} from '../../debug/DebugSimulator';
 
 interface Props {
-  onTestAlert: () => void;
   onSwipeLeft?: () => void;
 }
 
-export function MainScreen({onTestAlert, onSwipeLeft}: Props): React.JSX.Element {
+export function MainScreen({onSwipeLeft}: Props): React.JSX.Element {
   const isDark = useColorScheme() === 'dark';
+  const insets = useSafeAreaInsets();
 
   const threats = useRadarStore(s => s.threats);
   const connectionStatus = useRadarStore(s => s.connectionStatus);
@@ -32,6 +33,16 @@ export function MainScreen({onTestAlert, onSwipeLeft}: Props): React.JSX.Element
 
   const sidebarPosition = useSettingsStore(s => s.sidebarPosition);
   const units = useSettingsStore(s => s.units);
+  const debugMode = useSettingsStore(s => s.debugMode);
+  const debugLastAnnouncement = useRadarStore(s => s.debugLastAnnouncement);
+  const debugTTSLog = useRadarStore(s => s.debugTTSLog);
+  const simulatorRef = useRef(new DebugSimulator());
+  const [simRunning, setSimRunning] = useState(false);
+
+  useEffect(() => {
+    const sim = simulatorRef.current;
+    return () => sim.stop();
+  }, []);
 
   const isConnected = connectionStatus === ConnectionStatus.Connected;
   const maxLevel = getMaxThreatLevel(threats);
@@ -78,10 +89,10 @@ export function MainScreen({onTestAlert, onSwipeLeft}: Props): React.JSX.Element
 
   return (
     <GestureDetector gesture={swipeGesture}>
-    <SafeAreaView style={[styles.container, isDark && styles.containerDark]} testID="main-screen">
+    <View style={[styles.container, isDark && styles.containerDark]} testID="main-screen">
       <RadarStrip threats={threats} position={sidebarPosition} />
 
-      <View style={[styles.main, mainPadding]}>
+      <View style={[styles.main, mainPadding, {paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24}]}>
         {/* Connection status */}
         <View testID="connection-status-row">
           <Text style={[styles.connectionStatus, isDark && styles.textDark]} testID="connection-status">
@@ -124,15 +135,45 @@ export function MainScreen({onTestAlert, onSwipeLeft}: Props): React.JSX.Element
           </View>
         )}
 
-        {/* Test Alert */}
-        <TouchableOpacity
-          testID="test-alert-button"
-          style={styles.testAlertButton}
-          onPress={onTestAlert}>
-          <Text style={styles.testAlertText}>{Strings.testAlertButton}</Text>
-        </TouchableOpacity>
+        {/* Debug TTS indicator */}
+        {debugMode && (
+          <View style={{marginBottom: 4}}>
+            {debugLastAnnouncement !== '' && (
+              <Text style={{color: '#6B7280', fontSize: 12, textAlign: 'center'}}>
+                announced: "{debugLastAnnouncement}"
+              </Text>
+            )}
+            {debugTTSLog !== '' && (
+              <Text style={{color: '#9CA3AF', fontSize: 10, textAlign: 'center'}}>
+                {debugTTSLog}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Debug Simulate */}
+        {debugMode && (
+          <TouchableOpacity
+            testID="debug-simulate-button"
+            style={[styles.simButton, {backgroundColor: simRunning ? '#DC2626' : '#16A34A', marginBottom: 10}]}
+            onPress={() => {
+              const sim = simulatorRef.current;
+              if (sim.isRunning()) {
+                sim.stop();
+                setSimRunning(false);
+              } else {
+                sim.start();
+                setSimRunning(true);
+              }
+            }}>
+            <Text style={styles.simButtonText}>
+              {simRunning ? 'Stop Simulation' : 'Simulate Threats'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
       </View>
-    </SafeAreaView>
+    </View>
     </GestureDetector>
   );
 }
@@ -148,9 +189,7 @@ const styles = StyleSheet.create({
   main: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 12,
     justifyContent: 'space-between',
-    paddingBottom: 24,
   },
   connectionStatus: {
     fontSize: 14,
@@ -202,16 +241,12 @@ const styles = StyleSheet.create({
     minWidth: 36,
     textAlign: 'right',
   },
-  testAlertButton: {
-    backgroundColor: '#1F2937',
+  simButton: {
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',
   },
-  testAlertButtonDisabled: {
-    backgroundColor: '#9CA3AF',
-  },
-  testAlertText: {
+  simButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
