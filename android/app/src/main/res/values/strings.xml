@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">VoxRider</string>
+    <string name="notification_channel_name">VoxRider Radar</string>
+    <string name="notification_channel_desc">Keeps VoxRider connected to your Varia radar in the background</string>
+    <string name="notification_title">VoxRider active</string>
+    <string name="notification_text">Radar monitoring in progress</string>
 </resources>

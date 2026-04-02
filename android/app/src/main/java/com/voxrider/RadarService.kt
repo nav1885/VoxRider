@@ -68,11 +68,11 @@ class RadarService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "VoxRider Radar",
+                getString(R.string.notification_channel_name),
                 // IMPORTANCE_LOW: visible in shade, no sound, no heads-up — not intrusive
                 NotificationManager.IMPORTANCE_LOW,
             ).apply {
-                description = "Keeps VoxRider connected to your Varia radar in the background"
+                description = getString(R.string.notification_channel_desc)
                 setShowBadge(false)
             }
             val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -82,9 +82,9 @@ class RadarService : Service() {
 
     private fun buildNotification(): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("VoxRider active")
-            .setContentText("Radar monitoring in progress")
-            .setSmallIcon(android.R.drawable.ic_menu_compass) // placeholder — replace with app icon
+            .setContentTitle(getString(R.string.notification_title))
+            .setContentText(getString(R.string.notification_text))
+            .setSmallIcon(R.drawable.ic_notification)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .setSilent(true)

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Network Security Config for VoxRider.
+  The app communicates only via Bluetooth — no external network requests.
+  Cleartext is blocked globally. Localhost is permitted for the Metro dev
+  bundler (debug builds only — release builds never connect to Metro since
+  JS is bundled into the AAB).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Metro bundler dev server (localhost only, harmless in release) -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+
+    <!-- User-installed CAs trusted in debug builds for Charles/Proxyman -->
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>
