@@ -17,6 +17,7 @@ import {NativeTTSBackend} from './src/alerts/NativeTTSBackend';
 import {ConnectionAlertEngine} from './src/alerts/ConnectionAlertEngine';
 import {buildAlertMessage} from './src/alerts/buildAlertMessage';
 import {getMaxThreatLevel} from './src/ble/parseRadarPacket';
+import {ThreatLevel} from './src/ble/types';
 import {Strings} from './src/constants/strings';
 
 export type RootStackParamList = {
@@ -37,36 +38,55 @@ const connectionAlertEngine = new ConnectionAlertEngine(msg =>
   ttsBackend.speak(msg, () => {}),
 );
 
-// Announce threat changes, respecting the user's verbosity setting
+// Announce threat changes, respecting the user's verbosity setting.
+//
+// Rules (per user feedback from road testing):
+//   • Announce when a new car appears (count increases).
+//   • Announce when threat escalates medium → high (safety).
+//   • Silent when a car passes (count decreases) — just update the counter.
+//   • Debounced "Clear" when all cars are gone.
+//   • Never re-announce the same car after a brief BLE dropout — VehicleTracker
+//     holds vehicles across short absences so count stays stable.
 let lastAnnouncedCount = 0;
+let lastAnnouncedMaxLevel: ThreatLevel = ThreatLevel.None;
 let clearTimer: ReturnType<typeof setTimeout> | null = null;
 
 function announceThreats(count: number, maxLevel: ReturnType<typeof getMaxThreatLevel>) {
-  if (count === lastAnnouncedCount) return;
+  const countIncreased = count > lastAnnouncedCount;
+  const isEscalation =
+    count > 0 &&
+    maxLevel === ThreatLevel.High &&
+    lastAnnouncedMaxLevel < ThreatLevel.High;
 
-  if (clearTimer) {
-    clearTimeout(clearTimer);
-    clearTimer = null;
-  }
-
-  lastAnnouncedCount = count;
-
-  if (count === 0) {
-    // Debounce "Clear" by 2s — avoids false clears when a car briefly dips to 0
+  if (count > 0 && (countIncreased || isEscalation)) {
+    // New car(s) appeared or threat escalated — cancel any pending clear and speak
+    if (clearTimer) {
+      clearTimeout(clearTimer);
+      clearTimer = null;
+    }
+    lastAnnouncedCount = count;
+    lastAnnouncedMaxLevel = maxLevel;
+    const verbosity = useSettingsStore.getState().verbosity;
+    const msg = buildAlertMessage(
+      {count, maxLevel, isEscalation, isClear: false},
+      verbosity,
+    );
+    useRadarStore.getState().setDebugLastAnnouncement(msg);
+    ttsBackend.speak(msg, () => {});
+  } else if (count === 0 && lastAnnouncedCount > 0) {
+    // All cars gone — debounced clear
+    lastAnnouncedCount = 0;
+    lastAnnouncedMaxLevel = ThreatLevel.None;
     clearTimer = setTimeout(() => {
       const msg = Strings.ttsClear;
       useRadarStore.getState().setDebugLastAnnouncement(msg);
       ttsBackend.speak(msg, () => {});
       clearTimer = null;
     }, 2000);
-  } else {
-    const verbosity = useSettingsStore.getState().verbosity;
-    const msg = buildAlertMessage(
-      {count, maxLevel, isEscalation: false, isClear: false},
-      verbosity,
-    );
-    useRadarStore.getState().setDebugLastAnnouncement(msg);
-    ttsBackend.speak(msg, () => {});
+  } else if (count < lastAnnouncedCount && count > 0) {
+    // Car(s) passed but others remain — update silently, no announcement
+    lastAnnouncedCount = count;
+    lastAnnouncedMaxLevel = maxLevel;
   }
 }
 
