@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   segmentThird: {flex: 1},
-  segmentActive: {borderColor: '#1F2937', backgroundColor: '#1F2937'},
+  segmentActive: {borderColor: '#16A34A', backgroundColor: '#16A34A'},
   segmentText: {fontSize: 14, color: '#374151'},
   segmentTextActive: {color: '#FFFFFF', fontWeight: '600'},
   emptyDevices: {color: '#6B7280', marginBottom: 12},
