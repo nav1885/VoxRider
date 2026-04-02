@@ -1,0 +1,70 @@
+name: Release AAB
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'          # trigger on version tags e.g. v1.0.0
+  workflow_dispatch:      # allow manual trigger from GitHub UI
+
+jobs:
+  build-android:
+    name: Build & Sign Android AAB
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Run JS tests
+        run: npm test -- --passWithNoTests
+
+      - name: Decode keystore from secret
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode \
+            > android/app/voxrider-release.keystore
+
+      - name: Write keystore.properties
+        run: |
+          cat > android/keystore.properties <<EOF
+          storeFile=voxrider-release.keystore
+          storePassword=${{ secrets.KEYSTORE_STORE_PASSWORD }}
+          keyAlias=${{ secrets.KEYSTORE_KEY_ALIAS }}
+          keyPassword=${{ secrets.KEYSTORE_KEY_PASSWORD }}
+          EOF
+
+      - name: Build release AAB
+        run: |
+          cd android
+          ./gradlew bundleRelease --no-daemon
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: voxrider-release-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android/app/build/outputs/bundle/release/app-release.aab
+          generate_release_notes: true

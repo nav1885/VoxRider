@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VoxRider – Privacy Policy</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           max-width: 720px; margin: 48px auto; padding: 0 24px;
+           color: #111827; line-height: 1.7; }
+    h1  { font-size: 1.75rem; margin-bottom: 4px; }
+    h2  { font-size: 1.1rem; margin-top: 2rem; color: #1F2937; }
+    p, li { font-size: 0.97rem; color: #374151; }
+    a   { color: #16A34A; }
+    .updated { font-size: 0.85rem; color: #6B7280; margin-bottom: 2rem; }
+    hr  { border: none; border-top: 1px solid #E5E7EB; margin: 2rem 0; }
+  </style>
+</head>
+<body>
+
+  <h1>VoxRider Privacy Policy</h1>
+  <p class="updated">Last updated: April 1, 2026</p>
+
+  <p>VoxRider is a mobile application that connects to a Garmin Varia radar via
+  Bluetooth and delivers voice alerts to road cyclists. This policy explains what
+  data the app accesses, how it is used, and what leaves your device.</p>
+
+  <hr />
+
+  <h2>1. Data We Collect</h2>
+  <p><strong>VoxRider collects no personal data.</strong> Specifically:</p>
+  <ul>
+    <li>No account registration or login is required.</li>
+    <li>No analytics, crash reporting, or telemetry SDKs are included.</li>
+    <li>No usage data is transmitted to any server.</li>
+    <li>No advertising identifiers are accessed.</li>
+  </ul>
+
+  <h2>2. Bluetooth Access</h2>
+  <p>VoxRider uses your device's Bluetooth radio exclusively to communicate with
+  a paired Garmin Varia RTL515 radar unit. Bluetooth data (vehicle proximity and
+  speed readings) is processed entirely on-device in real time and is never
+  stored or transmitted.</p>
+  <p>On Android 12 and above the app requests
+  <code>BLUETOOTH_SCAN</code> and <code>BLUETOOTH_CONNECT</code> permissions.
+  On Android 11 and below, <code>ACCESS_FINE_LOCATION</code> is required by the
+  operating system to perform Bluetooth scans; VoxRider does not use this
+  permission to determine your physical location.</p>
+
+  <h2>3. Local Storage</h2>
+  <p>VoxRider stores the following data locally on your device only:</p>
+  <ul>
+    <li>The Bluetooth device ID of your paired Varia radar, so the app can
+    reconnect automatically on next launch.</li>
+    <li>Your in-app settings (alert verbosity, distance units).</li>
+  </ul>
+  <p>This data never leaves your device and can be cleared by uninstalling the
+  app.</p>
+
+  <h2>4. Background Operation</h2>
+  <p>VoxRider runs a foreground service on Android to maintain the Bluetooth
+  connection while your screen is locked. A persistent notification ("VoxRider
+  active") is shown whenever the service is running, as required by Android
+  system policy. No background data collection occurs.</p>
+
+  <h2>5. Third-Party Services</h2>
+  <p>VoxRider does not integrate any third-party SDKs, analytics platforms,
+  advertising networks, or cloud services.</p>
+
+  <h2>6. Protocol Disclaimer</h2>
+  <p>VoxRider communicates with the Garmin Varia radar using a reverse-engineered
+  Bluetooth Low Energy protocol. VoxRider is an independent project and is not
+  affiliated with, endorsed by, or supported by Garmin Ltd. Use of the app is at
+  your own risk. The radar alert system is intended as a supplementary awareness
+  tool only — it does not replace attentive riding or substitute for traffic law
+  compliance.</p>
+
+  <h2>7. Safety Disclaimer</h2>
+  <p>VoxRider provides audio alerts to assist situational awareness. It does not
+  guarantee detection of all approaching vehicles. Always ride attentively and
+  obey all applicable traffic laws. The developers accept no liability for
+  accidents or injuries arising from reliance on the app.</p>
+
+  <h2>8. Children's Privacy</h2>
+  <p>VoxRider is intended for adult cyclists. The app does not knowingly collect
+  any data from children under 13.</p>
+
+  <h2>9. Changes to This Policy</h2>
+  <p>Any material changes to this policy will be reflected with an updated "Last
+  updated" date above. Continued use of the app after changes constitutes
+  acceptance of the revised policy.</p>
+
+  <h2>10. Contact</h2>
+  <p>Questions or concerns about this policy can be raised via the project's
+  GitHub repository:
+  <a href="https://github.com/nav1885/VoxRider/issues">
+    github.com/nav1885/VoxRider/issues</a>.</p>
+
+  <hr />
+  <p style="font-size:0.8rem; color:#9CA3AF;">
+    VoxRider is open-source software released under the MIT License.
+  </p>
+
+</body>
+</html>
