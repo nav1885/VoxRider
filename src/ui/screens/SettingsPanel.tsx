@@ -9,7 +9,10 @@ import {
   useColorScheme,
   NativeModules,
   Platform,
+  ToastAndroid,
+  Alert,
 } from 'react-native';
+import {openBugReport} from '../../utils/bugReport';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useSettingsStore} from '../../settings/settingsStore';
 import {AlertVerbosity} from '../../alerts/types';
@@ -81,6 +84,18 @@ export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): Re
     setVoiceId(id);
     NativeModules.VoxTTS?.setVoice(id ?? '');
     NativeModules.VoxTTS?.speak('1 vehicle, medium speed');
+  };
+
+  const handleBugReport = async () => {
+    try {
+      await openBugReport();
+    } catch {
+      if (Platform.OS === 'android') {
+        ToastAndroid.show("Couldn't open browser", ToastAndroid.SHORT);
+      } else {
+        Alert.alert('Error', "Couldn't open browser");
+      }
+    }
   };
 
   const textStyle = [styles.text, isDark && styles.textDark];
@@ -205,6 +220,14 @@ export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): Re
             </TouchableOpacity>
           ))}
         </View>
+        {/* Report a Bug */}
+        <TouchableOpacity
+          testID="report-bug-button"
+          style={styles.bugReportRow}
+          onPress={handleBugReport}>
+          <Text style={styles.bugReportText}>Report a Bug</Text>
+          <Text style={[styles.bugReportCaret, isDark && styles.textDim]}>›</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       {/* Voice dropdown modal */}
@@ -370,4 +393,15 @@ const styles = StyleSheet.create({
   optionNameSelected: {color: '#15803D', fontWeight: '700'},
   optionHint: {fontSize: 12, color: '#9CA3AF', marginTop: 2},
   checkmark: {fontSize: 18, color: '#16A34A', fontWeight: '700'},
+  bugReportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 32,
+    paddingVertical: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#374151',
+  },
+  bugReportText: {fontSize: 15, color: '#EF4444'},
+  bugReportCaret: {fontSize: 20, color: '#6B7280'},
 });

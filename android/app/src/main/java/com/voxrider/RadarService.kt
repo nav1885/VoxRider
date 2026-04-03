@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 
@@ -31,18 +32,28 @@ class RadarService : Service() {
     companion object {
         private const val CHANNEL_ID = "voxrider_radar"
         private const val NOTIFICATION_ID = 1001
+        private const val WAKE_LOCK_TAG = "VoxRider::RadarWakeLock"
     }
+
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+
+        // PARTIAL_WAKE_LOCK keeps the CPU running while the screen is off,
+        // allowing JS timers (reconnect loop) to fire normally when locked.
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG).apply {
+            setReferenceCounted(false)
+            acquire()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notification = buildNotification()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            // Android 14+: specify foreground service type
             ServiceCompat.startForeground(
                 this,
                 NOTIFICATION_ID,
@@ -53,13 +64,15 @@ class RadarService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
 
-        // Return START_STICKY: if killed, restart without intent (BLE will reconnect automatically)
+        // START_STICKY: if killed by OS, restart automatically — essential for all-ride reliability
         return START_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        wakeLock?.release()
+        wakeLock = null
         super.onDestroy()
         stopForeground(STOP_FOREGROUND_REMOVE)
     }
