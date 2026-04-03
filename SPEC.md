@@ -145,9 +145,10 @@ Fenix 8     (ANT+) ←→ Varia RTL515   [unaffected, separate radio]
 |---|---|
 | Framework | React Native (cross-platform iOS + Android) |
 | BLE | `react-native-ble-plx` |
-| TTS + audio ducking | `react-native-tts` |
+| TTS — Android | Custom `VoxTTSModule` (Kotlin) using `TextToSpeech` with `QUEUE_FLUSH`. `react-native-tts` uses `QUEUE_ADD` which stalls silently on Android 12+ |
+| TTS — iOS | `react-native-tts` (no stall issue on iOS) |
 | iOS audio session | `AVAudioSession .duckOthers` |
-| Android audio focus | `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK` |
+| Android audio focus | `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK` on `STREAM_MUSIC` (navigation guidance usage) |
 | Android background | Foreground Service with persistent notification |
 | iOS background | Background BLE mode entitlement |
 | Navigation | React Navigation (stack navigator) |
@@ -271,19 +272,20 @@ Alerts take precedence over all audio. Audio ducking applied to music, podcasts,
 #### Trigger conditions (REQ-AUD-002)
 Alerts fire on meaningful state changes only:
 
-| Trigger | Notes |
-|---|---|
-| New threat detected | First appearance of any vehicle |
-| Threat count increases | Additional vehicle appears |
-| Threat level escalates | Medium → High (bypasses 2s throttle — safety always wins) |
-| All clear | Debounced 3 seconds to avoid false clears |
+| Trigger | Timing | Notes |
+|---|---|---|
+| Vehicle count increases | 1.5s debounce, 4s cap | New car(s) appear |
+| Vehicle count decreases (not to zero) | 1.5s debounce, 4s cap | Car passes, others remain — rider needs updated count |
+| Max threat level changes | 1.5s debounce, 4s cap | Up or down |
+| Escalation: medium → high | Immediate — no debounce | Interrupts current TTS |
+| All clear (count → 0) | 3s debounce, 5s cap | False-clear protection |
 
-Minimum 2 second throttle between alerts, except escalation.
+Rapid changes within the debounce window are batched — only the final stable state is announced. The cap ensures the rider is never silent for more than 4s (or 5s for clear) on a busy road.
 
 #### Snapshot-on-completion (REQ-AUD-003)
-While TTS is speaking, incoming BLE updates are discarded (not queued). When TTS finishes, the app evaluates current live state and fires a new alert only if warranted. Rider always hears current information — never stale queued data.
+While TTS is speaking, incoming BLE updates are discarded (not queued). When TTS finishes, the app evaluates current live state against last-spoken state and fires a new alert if count or level changed in either direction, or if a clear was dropped while speaking (restarts the clear debounce). Rider always hears current information — never stale queued data.
 
-Exception: medium → high escalation interrupts immediately.
+Exception: medium → high escalation interrupts immediately regardless of speaking state.
 
 #### Alert format (REQ-AUD-004)
 Distance is never spoken. Controlled by verbosity setting.
@@ -300,13 +302,14 @@ Clear announced as *"Clear"* across all verbosity levels — only spoken after a
 
 ### 8.4 Settings (swipe left)
 
-| Setting | Options | Default |
-|---|---|---|
-| Sidebar position | Left / Right | Left |
-| Alert verbosity | Detailed / Balanced / Minimal | Detailed |
-| Units | Imperial / Metric | Imperial |
-| Alert volume | Fixed loud (no slider) | — |
-| Paired devices | List, remove, add | — |
+| Setting | Options | Default | Platform |
+|---|---|---|---|
+| Alert verbosity | Detailed / Balanced / Minimal | Detailed | Both |
+| Units | Imperial / Metric | Imperial | Both |
+| Announcer voice | System Default / Echo (US) / Scout (UK) / Nova (AU) | System Default | Android only |
+| Paired devices | List, remove, add | — | Both |
+| Debug mode | On / Off | Off | Both |
+| Report a Bug | Opens pre-filled GitHub issue in browser | — | Both |
 
 **Paired Devices:**
 - Lists all paired Varia devices by friendly name + raw ID
@@ -316,13 +319,22 @@ Clear announced as *"Clear"* across all verbosity levels — only spoken after a
 
 ---
 
-### 8.5 Authentication
+### 8.5 Bug Report (REQ-SET-007)
+
+"Report a Bug" at the bottom of Settings. Tapping it:
+1. Collects: app version, platform, OS version, device model, timestamp, last 10 TTS log entries, connection status
+2. Encodes into a GitHub issue URL: `https://github.com/nav1885/VoxRider/issues/new?title=…&body=…`
+3. Opens URL via `Linking.openURL()` — browser handles GitHub auth
+
+No backend. No token in the app. Works on Android and iOS identically.
+
+### 8.6 Authentication
 
 No authentication. VoxRider is entirely on-device. No server, no account, no data leaving the phone. Revisit if cloud features are added post-v1.
 
 ---
 
-### 8.6 Permissions
+### 8.7 Permissions
 
 **Android — BLE Permissions (REQ-PER-001)**
 Android BLE permissions differ by API level — handled at runtime:

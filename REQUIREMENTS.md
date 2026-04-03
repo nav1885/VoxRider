@@ -144,7 +144,17 @@ Controls distance units across the app (main screen threat display, any distance
 TTS alert volume is fixed at a loud default. No user-adjustable volume slider — alerts are always prominent.
 - Uses independent audio channel from media volume (fixes the Garmin app's #1 complaint)
 
-### REQ-SET-005: Paired Devices
+### REQ-SET-005: Announcer Voice (Android)
+Controls which TTS voice is used for spoken alerts on Android.
+
+- **Default:** System Default (device's default TTS voice)
+- **Options:** Up to 3 curated offline voices from distinct English locales — Echo (US), Scout (UK), Nova (AU)
+- Only locales that have an offline voice installed on the device are shown; if a locale isn't installed the option is hidden
+- Selecting a voice immediately plays a preview utterance ("1 vehicle, medium speed")
+- Persists across app restarts
+- iOS: voice selection deferred to when iOS build is active (AVSpeechSynthesizer voices differ per platform)
+
+### REQ-SET-006: Paired Devices
 Manages the list of known Varia devices.
 
 - Lists all previously paired devices by friendly name ("Varia Radar") with raw ID shown small underneath
@@ -167,20 +177,22 @@ TTS alerts take precedence over all other audio. No suppression under any circum
 Alerts fire only when something materially changes that the rider needs to know. No back-to-back or redundant alerts.
 
 - **Connection gate:** Alerts only fire when `connectionStatus === 'connected'`. No alerts during "Searching...", reconnecting, or any transitional state — even if a BLE packet arrives.
-- **Trigger conditions (the only three):**
-  1. **Vehicle count increases** — one or more new cars appear (includes first appearance)
-  2. **Max threat level escalates** — medium → high speed
-  3. **All clear** — all vehicles drop to zero, debounced 3 seconds to avoid false clears. **Cap: 5 seconds** — if threats haven't reappeared within 5 seconds, force clear regardless
-- **Not a trigger:** de-escalation (high → medium), count decreases (partial), distance changes, same state repeating
-- Escalation (medium → high) **immediately interrupts** any currently speaking alert — safety always wins
-- All other alerts respect a 2-second minimum throttle
+- **Trigger conditions (the only four):**
+  1. **Vehicle count changes** — count increases (new car appears) OR count decreases (car passes, others remain). Both are announced so the rider always knows the current count.
+  2. **Max threat level changes** — any level change (up or down) is announced as a debounced update
+  3. **Max threat level escalates (medium → high)** — fires immediately, no debounce. Interrupts current TTS. Safety always wins.
+  4. **All clear** — all vehicles drop to zero, debounced 3 seconds. **Cap: 5 seconds** — forces clear if threats haven't reappeared within 5 seconds.
+- **Not a trigger:** same count + same level repeating, distance changes alone
+- **Debounce:** 1.5 seconds. Rapid changes (busy road) are batched — only the final stable state is announced. **Cap: 4 seconds** — on continuously busy roads the cap forces an announcement so the rider is never silent for more than 4 seconds.
+- Escalation (medium → high) **immediately interrupts** any currently speaking alert — no debounce, no throttle
 
 ### REQ-AUD-003: Snapshot-on-Completion
 While TTS is speaking, incoming BLE updates are not queued. When TTS finishes, the app compares current live state against **last spoken state** and fires a new alert only if something materially changed:
-- Current vehicle count > last spoken count, OR
-- Current max threat level > last spoken max level
+- Current vehicle count ≠ last spoken count (increase OR decrease), OR
+- Current max threat level ≠ last spoken max level, OR
+- Threats are now zero but last spoken count was > 0 (clear was dropped while speaking — restarts clear debounce)
 
-If state is the same or has only de-escalated/decreased, no follow-up alert fires. This prevents back-to-back identical alerts and ensures the rider always hears current, non-redundant information.
+If state is unchanged, no follow-up alert fires. This prevents back-to-back identical alerts and ensures the rider always hears current, non-redundant information.
 
 - **Last spoken state** is tracked as `{ count: number, maxLevel: ThreatLevel }` — reset to zero/none on all-clear
 - Exception: medium → high escalation interrupts immediately regardless (REQ-AUD-002)
@@ -199,6 +211,19 @@ Alert format controlled by REQ-SET-002 (verbosity setting).
 - **Detailed (default):** "2 vehicles, high speed" / "1 vehicle, medium speed" / "Clear"
 - **Balanced:** "2 vehicles" / "1 vehicle" / "Clear"
 - **Minimal:** "2 cars" / "car" / "Clear"
+
+---
+
+### REQ-SET-007: Bug Report
+Allows riders to submit a bug report without leaving the app or needing technical knowledge.
+
+- **Trigger:** "Report a Bug" row at the bottom of the Settings screen
+- **Mechanism:** Builds a pre-filled GitHub issue URL and opens it in the device browser via `Linking.openURL`. No backend, no token, no credentials in the app.
+- **Auto-collected data:** app version, platform, OS version, device model, timestamp, last 10 TTS events, current connection status
+- **User action:** add one line of context in the browser, tap Submit on GitHub (requires GitHub account)
+- **Fallback:** if browser cannot be opened, show a toast: *"Couldn't open browser"*
+- Works on both Android and iOS
+- GitHub issue: #44
 
 ---
 
