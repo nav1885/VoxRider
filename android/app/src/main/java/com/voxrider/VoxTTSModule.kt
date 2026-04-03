@@ -154,19 +154,29 @@ class VoxTTSModule(private val reactContext: ReactApplicationContext) :
                 promise.resolve(Arguments.createArray())
                 return
             }
-            // Return the 3 best offline English voices, deduplicated by quality tier.
-            // The caller maps these to character names (Echo / Scout / Nova).
-            val top3 = voices
-                .filter { it.locale.language == "en" && !it.isNetworkConnectionRequired }
-                .sortedWith(compareByDescending<Voice> { it.quality }.thenBy { it.name })
-                .distinctBy { it.quality }
-                .take(3)
+            // Pick the best offline voice from each target locale.
+            // Different regional accents are guaranteed to sound distinct.
+            data class Target(val region: String, val country: String)
+            val targets = listOf(
+                Target("US", "US"),
+                Target("GB", "GB"),
+                Target("AU", "AU"),
+            )
             val result = Arguments.createArray()
-            top3.forEach { voice ->
-                val map = Arguments.createMap()
-                map.putString("id", voice.name)
-                map.putInt("quality", voice.quality)
-                result.pushMap(map)
+            for (target in targets) {
+                val voice = voices
+                    .filter {
+                        it.locale.language == "en" &&
+                        it.locale.country.equals(target.country, ignoreCase = true) &&
+                        !it.isNetworkConnectionRequired
+                    }
+                    .maxByOrNull { it.quality }
+                if (voice != null) {
+                    val map = Arguments.createMap()
+                    map.putString("id", voice.name)
+                    map.putString("region", target.region)
+                    result.pushMap(map)
+                }
             }
             promise.resolve(result)
         } catch (e: Exception) {

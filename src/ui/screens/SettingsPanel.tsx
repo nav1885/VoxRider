@@ -16,12 +16,17 @@ import {AlertVerbosity} from '../../alerts/types';
 import {Units} from '../../settings/types';
 import {Strings} from '../../constants/strings';
 
-// Character names mapped to the top-3 voices returned by getVoices()
-const VOICE_CHARACTERS = ['Echo', 'Scout', 'Nova'] as const;
+// Character name + accent label per region
+const REGION_VOICE: Record<string, {character: string; label: string}> = {
+  US: {character: 'Echo',  label: 'American'},
+  GB: {character: 'Scout', label: 'British'},
+  AU: {character: 'Nova',  label: 'Australian'},
+};
 
 interface VoiceSlot {
-  id: string;    // native voice ID
+  id: string;
   character: string;
+  label: string;     // e.g. "American"
 }
 
 interface Props {
@@ -53,11 +58,14 @@ export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): Re
       return;
     }
     NativeModules.VoxTTS?.getVoices()
-      .then((raw: {id: string; quality: number}[]) => {
-        const slots = raw.map((v, i) => ({
-          id: v.id,
-          character: VOICE_CHARACTERS[i] ?? `Voice ${i + 1}`,
-        }));
+      .then((raw: {id: string; region: string}[]) => {
+        const slots = raw
+          .filter(v => REGION_VOICE[v.region])
+          .map(v => ({
+            id: v.id,
+            character: REGION_VOICE[v.region].character,
+            label: REGION_VOICE[v.region].label,
+          }));
         setVoiceSlots(slots);
       })
       .catch(() => {});
@@ -241,7 +249,7 @@ export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): Re
                     {slot.character}
                   </Text>
                   <Text style={[styles.optionHint, isDark && styles.textDim]}>
-                    Tap to preview
+                    {slot.label} accent · Tap to preview
                   </Text>
                 </View>
                 {voiceId === slot.id && <Text style={styles.checkmark}>✓</Text>}
