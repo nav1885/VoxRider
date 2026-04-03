@@ -11,10 +11,12 @@ interface SettingsState {
   units: Units;
   pairedDevices: DeviceInfo[];
   debugMode: boolean;
+  voiceId: string | null;
 
   setVerbosity: (v: AlertVerbosity) => void;
   setUnits: (u: Units) => void;
   setDebugMode: (on: boolean) => void;
+  setVoiceId: (id: string | null) => void;
   addPairedDevice: (device: DeviceInfo) => void;
   removePairedDevice: (deviceId: string) => void;
   updateLastConnected: (deviceId: string) => void;
@@ -27,6 +29,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   units: 'imperial',
   pairedDevices: [],
   debugMode: false,
+  voiceId: null,
 
   setDebugMode: on => {
     set({debugMode: on});
@@ -37,6 +40,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   setUnits: u => {
     set({units: u});
+    get()._persist();
+  },
+  setVoiceId: id => {
+    set({voiceId: id});
     get()._persist();
   },
   addPairedDevice: device => {
@@ -69,6 +76,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           verbosity: saved.verbosity ?? AlertVerbosity.Detailed,
           units: saved.units ?? 'imperial',
           pairedDevices: saved.pairedDevices ?? [],
+          voiceId: saved.voiceId ?? null,
         });
       }
     } catch {}
@@ -76,10 +84,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   _persist: async () => {
     try {
-      const {verbosity, units, pairedDevices} = get();
+      const {verbosity, units, pairedDevices, voiceId} = get();
       await AsyncStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({verbosity, units, pairedDevices}),
+        JSON.stringify({verbosity, units, pairedDevices, voiceId}),
       );
     } catch {}
   },

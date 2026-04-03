@@ -7,7 +7,10 @@ import android.os.Build
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.speech.tts.Voice
 import android.util.Log
+import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
@@ -20,6 +23,7 @@ class VoxTTSModule(private val reactContext: ReactApplicationContext) :
     private var tts: TextToSpeech? = null
     private var ready = false
     private var speakCount = 0
+    private var selectedVoiceId: String? = null
     private val audioManager by lazy {
         reactContext.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
     }
@@ -127,8 +131,44 @@ class VoxTTSModule(private val reactContext: ReactApplicationContext) :
             putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC)
         }
 
+        // Apply selected voice if set
+        selectedVoiceId?.let { voiceId ->
+            tts?.voices?.find { it.name == voiceId }?.let { tts?.voice = it }
+        }
+
         val result = tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, id)
         emit("speak", "[$speakCount] tts.speak() returned $result (SUCCESS=${TextToSpeech.SUCCESS})")
+    }
+
+    @ReactMethod
+    fun setVoice(voiceId: String) {
+        selectedVoiceId = voiceId.ifEmpty { null }
+        emit("setVoice", "voiceId=$voiceId")
+    }
+
+    @ReactMethod
+    fun getVoices(promise: Promise) {
+        try {
+            val voices = tts?.voices
+            if (voices == null) {
+                promise.resolve(Arguments.createArray())
+                return
+            }
+            val result = Arguments.createArray()
+            voices
+                .filter { it.locale.language == "en" && !it.isNetworkConnectionRequired }
+                .sortedWith(compareByDescending<Voice> { it.quality }.thenBy { it.name })
+                .forEach { voice ->
+                    val map = Arguments.createMap()
+                    map.putString("id", voice.name)
+                    map.putString("name", voice.locale.displayName)
+                    map.putInt("quality", voice.quality)
+                    result.pushMap(map)
+                }
+            promise.resolve(result)
+        } catch (e: Exception) {
+            promise.reject("GET_VOICES_ERROR", e.message, e)
+        }
     }
 
     @ReactMethod

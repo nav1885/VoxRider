@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,21 @@ import {
   ScrollView,
   StyleSheet,
   useColorScheme,
+  NativeModules,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useSettingsStore} from '../../settings/settingsStore';
 import {AlertVerbosity} from '../../alerts/types';
 import {Units} from '../../settings/types';
 import {Strings} from '../../constants/strings';
+
+interface VoiceOption {
+  id: string;
+  name: string;
+  quality: number;
+}
 
 interface Props {
   onClose: () => void;
@@ -31,6 +40,29 @@ export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): Re
   const removePairedDevice = useSettingsStore(s => s.removePairedDevice);
   const debugMode = useSettingsStore(s => s.debugMode);
   const setDebugMode = useSettingsStore(s => s.setDebugMode);
+  const voiceId = useSettingsStore(s => s.voiceId);
+  const setVoiceId = useSettingsStore(s => s.setVoiceId);
+
+  const [voices, setVoices] = useState<VoiceOption[]>([]);
+  const [voicesLoading, setVoicesLoading] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+    setVoicesLoading(true);
+    NativeModules.VoxTTS?.getVoices()
+      .then((v: VoiceOption[]) => setVoices(v))
+      .catch(() => {})
+      .finally(() => setVoicesLoading(false));
+  }, []);
+
+  const handleSelectVoice = (id: string) => {
+    const next = id === voiceId ? null : id;
+    setVoiceId(next);
+    NativeModules.VoxTTS?.setVoice(next ?? '');
+    NativeModules.VoxTTS?.speak('1 vehicle, medium speed');
+  };
 
   const textStyle = [styles.text, isDark && styles.textDark];
   const labelStyle = [styles.sectionLabel, isDark && styles.textDim];
@@ -86,6 +118,39 @@ export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): Re
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Voice */}
+        {Platform.OS === 'android' && (
+          <>
+            <Text style={[labelStyle, styles.sectionSpacing]}>ANNOUNCER VOICE</Text>
+            {voicesLoading ? (
+              <ActivityIndicator size="small" color="#16A34A" style={styles.voiceLoader} />
+            ) : voices.length === 0 ? (
+              <Text style={[textStyle, styles.emptyDevices]}>No voices available</Text>
+            ) : (
+              voices.map(v => {
+                const isSelected = voiceId === v.id;
+                return (
+                  <TouchableOpacity
+                    key={v.id}
+                    testID={`voice-${v.id}`}
+                    style={[styles.voiceRow, isSelected && styles.voiceRowSelected]}
+                    onPress={() => handleSelectVoice(v.id)}>
+                    <View style={styles.voiceInfo}>
+                      <Text style={[styles.voiceName, isSelected && styles.voiceNameSelected]}>
+                        {v.name}
+                      </Text>
+                      {v.quality >= 400 && (
+                        <Text style={styles.voiceQuality}>HD</Text>
+                      )}
+                    </View>
+                    {isSelected && <Text style={styles.voiceCheck}>✓</Text>}
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </>
+        )}
 
         {/* Paired Devices */}
         <Text style={[labelStyle, styles.sectionSpacing]}>{Strings.settingsPairedDevices}</Text>
@@ -199,4 +264,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   addDeviceText: {fontSize: 15, color: '#1F2937', fontWeight: '600'},
+  voiceLoader: {marginVertical: 12},
+  voiceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    marginBottom: 6,
+  },
+  voiceRowSelected: {borderColor: '#16A34A', backgroundColor: '#F0FDF4'},
+  voiceInfo: {flexDirection: 'row', alignItems: 'center', gap: 8},
+  voiceName: {fontSize: 14, color: '#374151'},
+  voiceNameSelected: {color: '#15803D', fontWeight: '600'},
+  voiceQuality: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#16A34A',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  voiceCheck: {fontSize: 16, color: '#16A34A', fontWeight: '700'},
 });

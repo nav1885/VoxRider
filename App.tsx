@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {StatusBar, useColorScheme} from 'react-native';
+import {StatusBar, useColorScheme, NativeModules, Platform} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {NavigationContainer} from '@react-navigation/native';
 import {createStackNavigator, CardStyleInterpolators} from '@react-navigation/stack';
@@ -108,7 +108,10 @@ export default function App(): React.JSX.Element {
     const init = async () => {
       await ttsBackend.initialize();
       await loadSettings();
-      const {pairedDevices} = useSettingsStore.getState();
+      const {pairedDevices, voiceId} = useSettingsStore.getState();
+      if (Platform.OS === 'android' && voiceId) {
+        NativeModules.VoxTTS?.setVoice(voiceId);
+      }
       if (pairedDevices.length > 0) {
         // Auto-connect to last paired device
         const lastDevice = pairedDevices[pairedDevices.length - 1];
