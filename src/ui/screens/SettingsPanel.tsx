@@ -4,10 +4,10 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
+  Modal,
   StyleSheet,
   useColorScheme,
   NativeModules,
-  ActivityIndicator,
   Platform,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -16,10 +16,12 @@ import {AlertVerbosity} from '../../alerts/types';
 import {Units} from '../../settings/types';
 import {Strings} from '../../constants/strings';
 
-interface VoiceOption {
-  id: string;
-  name: string;
-  quality: number;
+// Character names mapped to the top-3 voices returned by getVoices()
+const VOICE_CHARACTERS = ['Echo', 'Scout', 'Nova'] as const;
+
+interface VoiceSlot {
+  id: string;    // native voice ID
+  character: string;
 }
 
 interface Props {
@@ -43,24 +45,33 @@ export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): Re
   const voiceId = useSettingsStore(s => s.voiceId);
   const setVoiceId = useSettingsStore(s => s.setVoiceId);
 
-  const [voices, setVoices] = useState<VoiceOption[]>([]);
-  const [voicesLoading, setVoicesLoading] = useState(false);
+  const [voiceSlots, setVoiceSlots] = useState<VoiceSlot[]>([]);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   useEffect(() => {
     if (Platform.OS !== 'android') {
       return;
     }
-    setVoicesLoading(true);
     NativeModules.VoxTTS?.getVoices()
-      .then((v: VoiceOption[]) => setVoices(v))
-      .catch(() => {})
-      .finally(() => setVoicesLoading(false));
+      .then((raw: {id: string; quality: number}[]) => {
+        const slots = raw.map((v, i) => ({
+          id: v.id,
+          character: VOICE_CHARACTERS[i] ?? `Voice ${i + 1}`,
+        }));
+        setVoiceSlots(slots);
+      })
+      .catch(() => {});
   }, []);
 
-  const handleSelectVoice = (id: string) => {
-    const next = id === voiceId ? null : id;
-    setVoiceId(next);
-    NativeModules.VoxTTS?.setVoice(next ?? '');
+  const currentCharacter =
+    voiceId == null
+      ? 'System Default'
+      : (voiceSlots.find(s => s.id === voiceId)?.character ?? 'System Default');
+
+  const handleSelect = (id: string | null) => {
+    setDropdownOpen(false);
+    setVoiceId(id);
+    NativeModules.VoxTTS?.setVoice(id ?? '');
     NativeModules.VoxTTS?.speak('1 vehicle, medium speed');
   };
 
@@ -119,36 +130,19 @@ export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): Re
           ))}
         </View>
 
-        {/* Voice */}
+        {/* Announcer Voice — Android only */}
         {Platform.OS === 'android' && (
           <>
             <Text style={[labelStyle, styles.sectionSpacing]}>ANNOUNCER VOICE</Text>
-            {voicesLoading ? (
-              <ActivityIndicator size="small" color="#16A34A" style={styles.voiceLoader} />
-            ) : voices.length === 0 ? (
-              <Text style={[textStyle, styles.emptyDevices]}>No voices available</Text>
-            ) : (
-              voices.map(v => {
-                const isSelected = voiceId === v.id;
-                return (
-                  <TouchableOpacity
-                    key={v.id}
-                    testID={`voice-${v.id}`}
-                    style={[styles.voiceRow, isSelected && styles.voiceRowSelected]}
-                    onPress={() => handleSelectVoice(v.id)}>
-                    <View style={styles.voiceInfo}>
-                      <Text style={[styles.voiceName, isSelected && styles.voiceNameSelected]}>
-                        {v.name}
-                      </Text>
-                      {v.quality >= 400 && (
-                        <Text style={styles.voiceQuality}>HD</Text>
-                      )}
-                    </View>
-                    {isSelected && <Text style={styles.voiceCheck}>✓</Text>}
-                  </TouchableOpacity>
-                );
-              })
-            )}
+            <TouchableOpacity
+              testID="voice-dropdown-trigger"
+              style={[styles.dropdown, isDark && styles.dropdownDark]}
+              onPress={() => setDropdownOpen(true)}>
+              <Text style={[styles.dropdownValue, isDark && styles.textDark]}>
+                {currentCharacter}
+              </Text>
+              <Text style={[styles.dropdownCaret, isDark && styles.textDim]}>▾</Text>
+            </TouchableOpacity>
           </>
         )}
 
@@ -204,6 +198,58 @@ export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): Re
           ))}
         </View>
       </ScrollView>
+
+      {/* Voice dropdown modal */}
+      <Modal
+        visible={dropdownOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDropdownOpen(false)}>
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setDropdownOpen(false)}>
+          <View style={[styles.modalSheet, isDark && styles.modalSheetDark]}>
+            <Text style={[styles.modalTitle, isDark && styles.textDark]}>
+              ANNOUNCER VOICE
+            </Text>
+
+            {/* System Default */}
+            <TouchableOpacity
+              testID="voice-option-default"
+              style={[styles.option, voiceId == null && styles.optionSelected]}
+              onPress={() => handleSelect(null)}>
+              <View style={styles.optionContent}>
+                <Text style={[styles.optionName, isDark && styles.textDark, voiceId == null && styles.optionNameSelected]}>
+                  System Default
+                </Text>
+                <Text style={[styles.optionHint, isDark && styles.textDim]}>
+                  Your device's default voice
+                </Text>
+              </View>
+              {voiceId == null && <Text style={styles.checkmark}>✓</Text>}
+            </TouchableOpacity>
+
+            {voiceSlots.map(slot => (
+              <TouchableOpacity
+                key={slot.id}
+                testID={`voice-option-${slot.character.toLowerCase()}`}
+                style={[styles.option, voiceId === slot.id && styles.optionSelected]}
+                onPress={() => handleSelect(slot.id)}>
+                <View style={styles.optionContent}>
+                  <Text style={[styles.optionName, isDark && styles.textDark, voiceId === slot.id && styles.optionNameSelected]}>
+                    {slot.character}
+                  </Text>
+                  <Text style={[styles.optionHint, isDark && styles.textDim]}>
+                    Tap to preview
+                  </Text>
+                </View>
+                {voiceId === slot.id && <Text style={styles.checkmark}>✓</Text>}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -264,30 +310,55 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   addDeviceText: {fontSize: 15, color: '#1F2937', fontWeight: '600'},
-  voiceLoader: {marginVertical: 12},
-  voiceRow: {
+  // Dropdown trigger
+  dropdown: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 11,
-    paddingHorizontal: 12,
-    borderRadius: 8,
     borderWidth: 1.5,
     borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  dropdownDark: {borderColor: '#374151'},
+  dropdownValue: {fontSize: 15, color: '#111827'},
+  dropdownCaret: {fontSize: 18, color: '#6B7280'},
+  // Modal
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 36,
+  },
+  modalSheetDark: {backgroundColor: '#1F2937'},
+  modalTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 16,
+  },
+  option: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 10,
     marginBottom: 6,
   },
-  voiceRowSelected: {borderColor: '#16A34A', backgroundColor: '#F0FDF4'},
-  voiceInfo: {flexDirection: 'row', alignItems: 'center', gap: 8},
-  voiceName: {fontSize: 14, color: '#374151'},
-  voiceNameSelected: {color: '#15803D', fontWeight: '600'},
-  voiceQuality: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#16A34A',
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  voiceCheck: {fontSize: 16, color: '#16A34A', fontWeight: '700'},
+  optionSelected: {backgroundColor: '#F0FDF4'},
+  optionContent: {flex: 1},
+  optionName: {fontSize: 16, color: '#111827', fontWeight: '500'},
+  optionNameSelected: {color: '#15803D', fontWeight: '700'},
+  optionHint: {fontSize: 12, color: '#9CA3AF', marginTop: 2},
+  checkmark: {fontSize: 18, color: '#16A34A', fontWeight: '700'},
 });

@@ -154,17 +154,20 @@ class VoxTTSModule(private val reactContext: ReactApplicationContext) :
                 promise.resolve(Arguments.createArray())
                 return
             }
-            val result = Arguments.createArray()
-            voices
+            // Return the 3 best offline English voices, deduplicated by quality tier.
+            // The caller maps these to character names (Echo / Scout / Nova).
+            val top3 = voices
                 .filter { it.locale.language == "en" && !it.isNetworkConnectionRequired }
                 .sortedWith(compareByDescending<Voice> { it.quality }.thenBy { it.name })
-                .forEach { voice ->
-                    val map = Arguments.createMap()
-                    map.putString("id", voice.name)
-                    map.putString("name", voice.locale.displayName)
-                    map.putInt("quality", voice.quality)
-                    result.pushMap(map)
-                }
+                .distinctBy { it.quality }
+                .take(3)
+            val result = Arguments.createArray()
+            top3.forEach { voice ->
+                val map = Arguments.createMap()
+                map.putString("id", voice.name)
+                map.putInt("quality", voice.quality)
+                result.pushMap(map)
+            }
             promise.resolve(result)
         } catch (e: Exception) {
             promise.reject("GET_VOICES_ERROR", e.message, e)
