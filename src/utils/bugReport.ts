@@ -53,10 +53,7 @@ export async function openBugReport(): Promise<void> {
     `&body=${encodeURIComponent(body)}` +
     `&labels=${encodeURIComponent('bug')}`;
 
-  const canOpen = await Linking.canOpenURL(url);
-  if (canOpen) {
-    await Linking.openURL(url);
-  } else {
-    throw new Error('Cannot open browser');
-  }
+  // canOpenURL returns false for https on Android 11+ without a <queries> manifest entry.
+  // openURL works regardless — let it throw naturally if no browser is installed.
+  await Linking.openURL(url);
 }
