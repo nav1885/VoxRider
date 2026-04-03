@@ -6,10 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   useColorScheme,
-  ToastAndroid,
-  Platform,
 } from 'react-native';
-import {openBugReport} from '../../utils/bugReport';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import {useRadarStore} from '../../ble/radarStore';
@@ -192,22 +189,6 @@ export function MainScreen({onSwipeLeft}: Props): React.JSX.Element {
           )}
 
         </View>
-
-        {/* ── Bug report FAB ── */}
-        <TouchableOpacity
-          testID="bug-report-fab"
-          style={[styles.fab, {bottom: insets.bottom + 16}]}
-          onPress={async () => {
-            try {
-              await openBugReport();
-            } catch {
-              if (Platform.OS === 'android') {
-                ToastAndroid.show("Couldn't open browser", ToastAndroid.SHORT);
-              }
-            }
-          }}>
-          <Text style={styles.fabText}>⚑</Text>
-        </TouchableOpacity>
       </View>
     </GestureDetector>
   );
@@ -265,22 +246,4 @@ const styles = StyleSheet.create({
   debugTTS: {color: '#9CA3AF', fontSize: 10, textAlign: 'center'},
   simButton: {borderRadius: 10, paddingVertical: 14, alignItems: 'center'},
   simButtonText: {color: '#FFFFFF', fontSize: 16, fontWeight: '600'},
-
-  // ── Bug report FAB ──
-  fab: {
-    position: 'absolute',
-    right: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#EF4444',
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-  },
-  fabText: {fontSize: 18, color: '#FFFFFF'},
 });

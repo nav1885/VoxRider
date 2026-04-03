@@ -9,7 +9,10 @@ import {
   useColorScheme,
   NativeModules,
   Platform,
+  ToastAndroid,
+  Alert,
 } from 'react-native';
+import {openBugReport} from '../../utils/bugReport';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useSettingsStore} from '../../settings/settingsStore';
 import {AlertVerbosity} from '../../alerts/types';
@@ -81,6 +84,18 @@ export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): Re
     setVoiceId(id);
     NativeModules.VoxTTS?.setVoice(id ?? '');
     NativeModules.VoxTTS?.speak('1 vehicle, medium speed');
+  };
+
+  const handleBugReport = async () => {
+    try {
+      await openBugReport();
+    } catch {
+      if (Platform.OS === 'android') {
+        ToastAndroid.show("Couldn't open browser", ToastAndroid.SHORT);
+      } else {
+        Alert.alert('Error', "Couldn't open browser");
+      }
+    }
   };
 
   const textStyle = [styles.text, isDark && styles.textDark];
@@ -204,6 +219,15 @@ export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): Re
               </Text>
             </TouchableOpacity>
           ))}
+        </View>
+        {/* Report a Bug */}
+        <View style={styles.bugReportRow}>
+          <TouchableOpacity
+            testID="report-bug-button"
+            style={styles.bugReportButton}
+            onPress={handleBugReport}>
+            <Text style={styles.bugReportText}>Report a Bug</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -370,4 +394,15 @@ const styles = StyleSheet.create({
   optionNameSelected: {color: '#15803D', fontWeight: '700'},
   optionHint: {fontSize: 12, color: '#9CA3AF', marginTop: 2},
   checkmark: {fontSize: 18, color: '#16A34A', fontWeight: '700'},
+  bugReportRow: {
+    marginTop: 32,
+    alignItems: 'flex-end',
+  },
+  bugReportButton: {
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+  },
+  bugReportText: {fontSize: 15, color: '#FFFFFF', fontWeight: '600'},
 });
