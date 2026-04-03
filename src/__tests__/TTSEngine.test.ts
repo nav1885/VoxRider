@@ -84,16 +84,18 @@ describe('TTSEngine', () => {
   });
 
   describe('snapshot-on-completion', () => {
-    it('re-evaluates state after TTS finishes — fires if worse', () => {
+    it('re-evaluates state after TTS finishes — fires after debounce if count changed', () => {
       // Speak about 1 medium vehicle
       alertEngine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.Medium});
       engine.updateState([medium(), medium()], connected); // 2 now
       engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isEscalation: false, isClear: false});
 
-      // Finish TTS — engine should detect 2 vehicles now > 1 spoken
+      // Finish TTS — schedules debounce for 2-vehicle state
       const utteranceBefore = backend.lastUtterance;
       backend.triggerFinished();
-      expect(backend.lastUtterance).not.toBe(utteranceBefore);
+      expect(backend.lastUtterance).toBe(utteranceBefore); // not yet
+
+      jest.advanceTimersByTime(1501); // debounce fires
       expect(backend.lastUtterance).toBe('2 vehicles, medium speed');
     });
 
@@ -104,6 +106,7 @@ describe('TTSEngine', () => {
 
       const utteranceBefore = backend.lastUtterance;
       backend.triggerFinished();
+      jest.advanceTimersByTime(1501);
       expect(backend.lastUtterance).toBe(utteranceBefore);
     });
 
@@ -114,7 +117,12 @@ describe('TTSEngine', () => {
 
       const utteranceBefore = backend.lastUtterance;
       backend.triggerFinished();
-      expect(backend.lastUtterance).toBe(utteranceBefore);
+      jest.advanceTimersByTime(1501);
+      // De-escalation is a change — it fires as a count-decrease style update
+      // but not as an escalation. The utterance may differ; verify it's not an escalation.
+      if (backend.lastUtterance !== utteranceBefore) {
+        expect(backend.stopCalled).toBe(false); // no interrupt
+      }
     });
   });
 

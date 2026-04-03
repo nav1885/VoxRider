@@ -2,15 +2,34 @@ import {Threat, ThreatLevel, ConnectionStatus} from '../ble/types';
 import {getMaxThreatLevel} from '../ble/parseRadarPacket';
 import {AlertTrigger, LastSpokenState} from './types';
 
-const THROTTLE_MS = 2000;
+/**
+ * How long to wait after a count/level change before announcing, so rapid
+ * arrivals/departures are batched into a single stable summary.
+ */
+const CHANGE_DEBOUNCE_MS = 1500;
+
+/**
+ * Hard cap: even if changes keep arriving, never wait longer than this before
+ * announcing. Prevents silence on continuously busy roads.
+ */
+const CHANGE_CAP_MS = 4000;
+
 const CLEAR_DEBOUNCE_MS = 3000;
 const CLEAR_DEBOUNCE_CAP_MS = 5000;
 
 export class AlertEngine {
   private lastSpokenState: LastSpokenState = {count: 0, maxLevel: ThreatLevel.None};
-  private lastAlertTime = 0;
+
+  // Pending debounced change
+  private pendingCount: number | null = null;
+  private pendingMaxLevel: ThreatLevel = ThreatLevel.None;
+  private changeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private changeCapTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Clear debounce
   private clearDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private clearCapTimer: ReturnType<typeof setTimeout> | null = null;
+
   private onTrigger: (trigger: AlertTrigger) => void;
 
   constructor(onTrigger: (trigger: AlertTrigger) => void) {
@@ -22,8 +41,12 @@ export class AlertEngine {
   }
 
   /**
-   * Evaluate incoming threat state against last spoken state.
-   * Only fires if connected and something materially changed.
+   * Evaluate incoming threat state on every BLE packet.
+   *
+   * Fires when:
+   *   - count OR maxLevel changed from lastSpoken (up or down), debounced
+   *   - escalation medium→high: immediate, no debounce
+   *   - threats cleared: 3 s debounce
    */
   evaluate(threats: Threat[], connectionStatus: ConnectionStatus): void {
     if (connectionStatus !== ConnectionStatus.Connected) {
@@ -32,45 +55,40 @@ export class AlertEngine {
 
     const count = threats.length;
     const maxLevel = getMaxThreatLevel(threats);
-    const now = Date.now();
 
-    // --- All clear ---
+    // ── All clear ──────────────────────────────────────────────────────────────
     if (count === 0) {
+      this._cancelPendingChange();
       if (this.lastSpokenState.count > 0) {
         this._startClearDebounce();
       }
       return;
     }
 
-    // Threats present — cancel any pending clear
     this._cancelClearDebounce();
 
-    // --- Escalation: medium → high (bypasses throttle, interrupts) ---
+    // ── Escalation: always immediate ───────────────────────────────────────────
     const isEscalation =
       maxLevel === ThreatLevel.High && this.lastSpokenState.maxLevel < ThreatLevel.High;
-
     if (isEscalation) {
+      this._cancelPendingChange();
       this._fire({count, maxLevel, isEscalation: true, isClear: false});
       return;
     }
 
-    // --- Count increase ---
-    const countIncreased = count > this.lastSpokenState.count;
-    if (!countIncreased) {
+    // ── No change from lastSpoken ──────────────────────────────────────────────
+    if (count === this.lastSpokenState.count && maxLevel === this.lastSpokenState.maxLevel) {
+      this._cancelPendingChange();
       return;
     }
 
-    // Throttle non-escalation alerts
-    if (now - this.lastAlertTime < THROTTLE_MS) {
-      return;
-    }
-
-    this._fire({count, maxLevel, isEscalation: false, isClear: false});
+    // ── Change (increase or decrease) — debounce ───────────────────────────────
+    this._schedulePendingChange(count, maxLevel);
   }
 
   /**
-   * Called after snapshot-on-completion — re-evaluate current state against
-   * last spoken state. Only fires if state got worse since last alert.
+   * Called after snapshot-on-completion — re-evaluate current state.
+   * Also handles the case where a clear was dropped while TTS was speaking (#43).
    */
   evaluateAfterTTSFinished(threats: Threat[], connectionStatus: ConnectionStatus): void {
     if (connectionStatus !== ConnectionStatus.Connected) {
@@ -81,32 +99,93 @@ export class AlertEngine {
     const maxLevel = getMaxThreatLevel(threats);
 
     if (count === 0) {
-      // Let normal clear debounce handle it
+      // Clear may have been dropped while we were speaking — restart debounce
+      if (this.lastSpokenState.count > 0) {
+        this._startClearDebounce();
+      }
       return;
     }
 
-    const countIncreased = count > this.lastSpokenState.count;
-    const levelEscalated = maxLevel > this.lastSpokenState.maxLevel;
-
-    if (!countIncreased && !levelEscalated) {
+    const isEscalation =
+      maxLevel === ThreatLevel.High && this.lastSpokenState.maxLevel < ThreatLevel.High;
+    if (isEscalation) {
+      this._cancelPendingChange();
+      this._fire({count, maxLevel, isEscalation: true, isClear: false});
       return;
     }
 
-    const isEscalation = maxLevel === ThreatLevel.High && this.lastSpokenState.maxLevel < ThreatLevel.High;
-    this._fire({count, maxLevel, isEscalation, isClear: false});
+    if (count !== this.lastSpokenState.count || maxLevel !== this.lastSpokenState.maxLevel) {
+      this._schedulePendingChange(count, maxLevel);
+    }
   }
 
-  /** Update last spoken state — called by TTSEngine when alert is spoken */
+  /** Called by TTSEngine when an alert is spoken */
   updateLastSpoken(state: LastSpokenState): void {
     this.lastSpokenState = state;
-    this.lastAlertTime = Date.now();
   }
 
-  /** Reset state — called on disconnect or all-clear confirmed */
+  /** Reset — call on disconnect */
   reset(): void {
     this._cancelClearDebounce();
+    this._cancelPendingChange();
     this.lastSpokenState = {count: 0, maxLevel: ThreatLevel.None};
-    this.lastAlertTime = 0;
+  }
+
+  // ── Private ────────────────────────────────────────────────────────────────
+
+  private _schedulePendingChange(count: number, maxLevel: ThreatLevel): void {
+    this.pendingCount = count;
+    this.pendingMaxLevel = maxLevel;
+
+    // Restart debounce on every new change
+    if (this.changeDebounceTimer !== null) {
+      clearTimeout(this.changeDebounceTimer);
+    }
+    this.changeDebounceTimer = setTimeout(() => this._firePending(), CHANGE_DEBOUNCE_MS);
+
+    // Cap: start only once — don't reset it, so busy roads always get an update
+    if (this.changeCapTimer === null) {
+      this.changeCapTimer = setTimeout(() => this._firePending(), CHANGE_CAP_MS);
+    }
+  }
+
+  private _firePending(): void {
+    if (this.changeDebounceTimer !== null) {
+      clearTimeout(this.changeDebounceTimer);
+      this.changeDebounceTimer = null;
+    }
+    if (this.changeCapTimer !== null) {
+      clearTimeout(this.changeCapTimer);
+      this.changeCapTimer = null;
+    }
+
+    if (this.pendingCount === null) {
+      return;
+    }
+
+    const count = this.pendingCount;
+    const maxLevel = this.pendingMaxLevel;
+    this.pendingCount = null;
+
+    // If the state has already returned to lastSpoken by the time debounce fires,
+    // skip — nothing meaningful changed
+    if (count === this.lastSpokenState.count && maxLevel === this.lastSpokenState.maxLevel) {
+      return;
+    }
+
+    this._fire({count, maxLevel, isEscalation: false, isClear: false});
+  }
+
+  private _cancelPendingChange(): void {
+    if (this.changeDebounceTimer !== null) {
+      clearTimeout(this.changeDebounceTimer);
+      this.changeDebounceTimer = null;
+    }
+    if (this.changeCapTimer !== null) {
+      clearTimeout(this.changeCapTimer);
+      this.changeCapTimer = null;
+    }
+    this.pendingCount = null;
   }
 
   private _fire(trigger: AlertTrigger): void {
@@ -117,13 +196,10 @@ export class AlertEngine {
     if (this.clearDebounceTimer !== null) {
       return; // Already pending
     }
-
     this.clearDebounceTimer = setTimeout(() => {
       this._cancelClearDebounce();
       this._fireClear();
     }, CLEAR_DEBOUNCE_MS);
-
-    // Cap: force clear after 5s regardless — cancels debounce to avoid double-fire
     this.clearCapTimer = setTimeout(() => {
       this._cancelClearDebounce();
       this._fireClear();
@@ -144,6 +220,5 @@ export class AlertEngine {
   private _fireClear(): void {
     this._fire({count: 0, maxLevel: ThreatLevel.None, isEscalation: false, isClear: true});
     this.lastSpokenState = {count: 0, maxLevel: ThreatLevel.None};
-    this.lastAlertTime = Date.now();
   }
 }

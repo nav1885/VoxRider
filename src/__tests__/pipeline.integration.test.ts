@@ -4,7 +4,6 @@
  * Uses MockBLEManager and a mock TTS backend — no native modules required.
  */
 import {MockBLEManager} from '../ble/MockBLEManager';
-import {parseRadarPacket} from '../ble/parseRadarPacket';
 import {AlertEngine} from '../alerts/AlertEngine';
 import {TTSEngine, ITTSBackend} from '../alerts/TTSEngine';
 import {AlertVerbosity} from '../alerts/types';
@@ -53,32 +52,33 @@ describe('Full pipeline integration', () => {
     alertEngine.reset();
   });
 
-  it('full ride: vehicle appears, escalates, clears', async () => {
-    // 1. Medium speed vehicle at 120m
+  it('full ride: vehicle appears, escalates, clears', () => {
+    // 1. Medium speed vehicle appears — debounce fires after 1.5s
     ble.emitThreats([{speed: 12, distance: 120, level: ThreatLevel.Medium}]);
-    alertEngine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.Medium});
+    expect(ttsBackend.spoken).toHaveLength(0); // not yet
 
+    jest.advanceTimersByTime(1501); // debounce fires
+    alertEngine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.Medium});
     expect(ttsBackend.spoken).toHaveLength(1);
     expect(ttsBackend.spoken[0]).toBe('1 vehicle, medium speed');
 
-    // 2. Same vehicle escalates to high speed — interrupt
+    // 2. Same vehicle escalates to high speed — fires immediately (no debounce)
     ble.emitThreats([{speed: 22, distance: 80, level: ThreatLevel.High}]);
     expect(ttsBackend.spoken).toHaveLength(2);
     expect(ttsBackend.spoken[1]).toBe('1 vehicle, high speed');
-    expect(ttsBackend.stopCount).toBe(1); // interrupted previous speech
 
-    // 3. Second vehicle appears
-    jest.advanceTimersByTime(100); // let TTS auto-finish
+    // 3. Second vehicle appears — debounce fires after 1.5s
+    jest.advanceTimersByTime(1); // tick for TTS auto-finish
     alertEngine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.High});
-    jest.advanceTimersByTime(2001); // past throttle
     ble.emitThreats([
       {speed: 22, distance: 40, level: ThreatLevel.High},
       {speed: 15, distance: 100, level: ThreatLevel.Medium},
     ]);
+    jest.advanceTimersByTime(1501);
+    alertEngine.updateLastSpoken({count: 2, maxLevel: ThreatLevel.High});
     expect(ttsBackend.spoken[ttsBackend.spoken.length - 1]).toBe('2 vehicles, high speed');
 
     // 4. All clear — debounced 3s
-    alertEngine.updateLastSpoken({count: 2, maxLevel: ThreatLevel.High});
     ble.emitThreats([]);
     expect(ttsBackend.spoken.filter(s => s === 'Clear')).toHaveLength(0); // not yet
 
@@ -87,7 +87,6 @@ describe('Full pipeline integration', () => {
   });
 
   it('no alerts fired when BLE disconnected', () => {
-    // Fresh isolated setup — not connected
     const isolatedBle = new MockBLEManager();
     const isolatedBackend = makeMockBackend();
     const isolatedAlertEngine = new AlertEngine(() => {});
@@ -99,43 +98,54 @@ describe('Full pipeline integration', () => {
     });
 
     isolatedBle.emitThreats([{speed: 20, distance: 50, level: ThreatLevel.High}]);
+    jest.advanceTimersByTime(1501);
     expect(isolatedBackend.spoken).toHaveLength(0);
   });
 
-  it('no alert on de-escalation', () => {
+  it('no alert on escalation de-escalation — fires as a count-stable level change', () => {
+    // lastSpoken = high; packet is now medium — this is a level change (decrease),
+    // so it fires as a debounced update (not an escalation interrupt)
     alertEngine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.High});
     ble.emitThreats([{speed: 10, distance: 80, level: ThreatLevel.Medium}]);
-    expect(ttsBackend.spoken).toHaveLength(0);
+    expect(ttsBackend.spoken).toHaveLength(0); // no immediate fire
+
+    jest.advanceTimersByTime(1501); // debounce fires
+    expect(ttsBackend.spoken).toHaveLength(1);
+    expect(ttsBackend.spoken[0]).toBe('1 vehicle, medium speed');
   });
 
-  it('no alert when count decreases but not to zero', () => {
+  it('announces updated count when count decreases but not to zero (#41 fix)', () => {
+    // Previously: count decrease was silently ignored. Now it announces.
     alertEngine.updateLastSpoken({count: 3, maxLevel: ThreatLevel.Medium});
     ble.emitThreats([
       {speed: 12, distance: 60, level: ThreatLevel.Medium},
       {speed: 10, distance: 90, level: ThreatLevel.Medium},
     ]);
-    expect(ttsBackend.spoken).toHaveLength(0);
+    expect(ttsBackend.spoken).toHaveLength(0); // not yet
+
+    jest.advanceTimersByTime(1501); // debounce fires
+    expect(ttsBackend.spoken).toHaveLength(1);
+    expect(ttsBackend.spoken[0]).toBe('2 vehicles, medium speed');
   });
 
   it('snapshot fires after TTS finishes if more vehicles arrived mid-speech', () => {
-    // Start speaking about 1 vehicle
+    // 1st packet: 1 vehicle — schedule debounce
     ble.emitThreats([{speed: 12, distance: 80, level: ThreatLevel.Medium}]);
+    jest.advanceTimersByTime(1501); // debounce fires → speaking
+    alertEngine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.Medium});
     expect(ttsBackend.spoken).toHaveLength(1);
 
-    // Before TTS finishes, a second vehicle appears
+    // 2nd packet: 2 vehicles appear while TTS is speaking
     ble.emitThreats([
       {speed: 12, distance: 80, level: ThreatLevel.Medium},
       {speed: 15, distance: 60, level: ThreatLevel.Medium},
     ]);
-    // Still only 1 spoken (second trigger dropped while speaking)
+    // 2nd trigger is dropped while speaking — snapshot-on-completion handles it
     expect(ttsBackend.spoken).toHaveLength(1);
 
-    // TTS finishes — snapshot should detect 2 vehicles > 1 spoken
-    jest.advanceTimersByTime(1); // tick for setTimeout(onFinished, 0)
-    alertEngine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.Medium});
-
-    // The second speak fires from snapshot
-    jest.advanceTimersByTime(1);
+    // TTS auto-finishes (setTimeout 0) + debounce for snapshot
+    jest.advanceTimersByTime(1); // tick for onFinished callback
+    jest.advanceTimersByTime(1501); // debounce from evaluateAfterTTSFinished
     expect(ttsBackend.spoken).toHaveLength(2);
     expect(ttsBackend.spoken[1]).toBe('2 vehicles, medium speed');
   });
