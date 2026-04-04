@@ -4,7 +4,7 @@ import {IBLEManager, DeviceInfo, Threat} from './types';
 import {parseRadarPacket} from './parseRadarPacket';
 import {useRadarStore} from './radarStore';
 import {ConnectionStatus} from './types';
-import {VehicleTracker} from './VehicleTracker';
+import {ThreatHoldover} from './ThreatHoldover';
 
 /**
  * Varia RTL515 BLE UUIDs (confirmed via pycycling / harbour-tacho community research)
@@ -38,7 +38,10 @@ export class RealBLEManager implements IBLEManager {
   private batterySubscription: {remove: () => void} | null = null;
   private disconnectSubscription: {remove: () => void} | null = null;
   private onThreats: ((threats: Threat[]) => void) | null = null;
-  private vehicleTracker = new VehicleTracker();
+  private threatHoldover = new ThreatHoldover(threats => {
+    useRadarStore.getState().setThreats(threats);
+    this.onThreats?.(threats);
+  });
 
   constructor() {
     this.bleManager = new BleManager();
@@ -233,9 +236,7 @@ export class RealBLEManager implements IBLEManager {
         const bytes = new Uint8Array(Buffer.from(characteristic.value, 'base64'));
         const packet = parseRadarPacket(bytes);
         const rawThreats = packet?.threats ?? [];
-        const threats = this.vehicleTracker.update(rawThreats);
-        useRadarStore.getState().setThreats(threats);
-        this.onThreats?.(threats);
+        this.threatHoldover.feed(rawThreats);
       },
     );
   }
@@ -246,7 +247,7 @@ export class RealBLEManager implements IBLEManager {
       (_error, _disconnectedDevice) => {
         this._unsubscribeAll();
         this.connectedDeviceId = null;
-        this.vehicleTracker.reset();
+        this.threatHoldover.reset();
         useRadarStore.getState().setConnectionStatus(ConnectionStatus.Reconnecting);
         useRadarStore.getState().setConnectedDevice(null);
         useRadarStore.getState().setThreats([]);
