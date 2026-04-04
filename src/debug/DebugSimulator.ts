@@ -1,47 +1,85 @@
 import {Threat, ThreatLevel, ConnectionStatus} from '../ble/types';
 import {useRadarStore} from '../ble/radarStore';
 import {ThreatHoldover} from '../ble/ThreatHoldover';
+import {ACTIVE_DEVICE} from '../ble/deviceProfiles';
+import {TrafficMode} from '../settings/types';
 
 /**
- * DebugSimulator — simulates occasional traffic on a quiet road.
+ * DebugSimulator — multi-car, smooth movement, traffic density modes.
  *
- * Spawns bursts of 1–3 vehicles with 1–2s between each car in the group,
- * then a long 8–15s gap before the next group. Vehicles start at ~200–255m,
- * approach at their speed, and disappear when they pass the rider (distance ≤ 0).
+ * Physics (position advance) runs every tick regardless of BLE dropout.
+ * Only the holdover.feed() call is skipped during simulated dropouts —
+ * this matches real BLE behaviour and produces smooth car movement.
  *
- * Tick rate: 300ms (matches real Varia BLE update rate).
+ * Traffic density is controlled by TrafficMode:
+ *   quiet    — 1 car at a time, long gaps
+ *   busy     — 1–3 cars, moderate gaps
+ *   very_busy — 2–5 cars, short gaps
+ *
+ * Tick rate and spawn distance are derived from the active device profile.
  */
 
-const TICK_MS = 300;
-const MAX_CONCURRENT = 4;
+const TICK_MS = ACTIVE_DEVICE.bleTickMs;
+const SPAWN_DISTANCE_M = ACTIVE_DEVICE.maxRangeMetres;
 
-// Probability of dropping a tick entirely (simulates BLE packet loss)
-const DROPOUT_PROBABILITY = 0.12; // ~12% — realistic for BLE in the field
+// Probability of dropping a BLE packet (simulates real-world dropout)
+const DROPOUT_PROBABILITY = 0.12; // ~12%
 
-// Gap between cars within a burst
-const INTRA_BURST_MIN_MS = 2000;
-const INTRA_BURST_MAX_MS = 4000;
-
-// Clear gap between bursts — 5–10s with no cars
-const INTER_BURST_MIN_MS = 5000;
-const INTER_BURST_MAX_MS = 10000;
-
-interface SimVehicle {
-  id: number;
-  distance: number; // meters, decreasing
-  speed: number; // m/s
-  level: ThreatLevel;
+interface TrafficProfile {
+  maxConcurrent: number;
+  burstMin: number;
+  burstMax: number;
+  intraBurstMinMs: number;
+  intraBurstMaxMs: number;
+  interBurstMinMs: number;
+  interBurstMaxMs: number;
 }
+
+const TRAFFIC_PROFILES: Record<TrafficMode, TrafficProfile> = {
+  quiet: {
+    maxConcurrent: 1,
+    burstMin: 1,
+    burstMax: 1,
+    intraBurstMinMs: 0,
+    intraBurstMaxMs: 0,
+    interBurstMinMs: 5000,
+    interBurstMaxMs: 10000,
+  },
+  busy: {
+    maxConcurrent: 3,
+    burstMin: 1,
+    burstMax: 2,
+    intraBurstMinMs: 1500,
+    intraBurstMaxMs: 3000,
+    interBurstMinMs: 2000,
+    interBurstMaxMs: 5000,
+  },
+  very_busy: {
+    maxConcurrent: 5,
+    burstMin: 2,
+    burstMax: 4,
+    intraBurstMinMs: 500,
+    intraBurstMaxMs: 1500,
+    interBurstMinMs: 500,
+    interBurstMaxMs: 2000,
+  },
+};
 
 // Vehicle templates — realistic cycling scenarios
 const VEHICLE_TEMPLATES = [
-  {speed: 8, level: ThreatLevel.Medium}, // slow car ~29 km/h
-  {speed: 12, level: ThreatLevel.Medium}, // moderate ~43 km/h
-  {speed: 16, level: ThreatLevel.High}, // fast ~58 km/h
-  {speed: 20, level: ThreatLevel.High}, // very fast ~72 km/h
-  {speed: 25, level: ThreatLevel.High}, // speeding ~90 km/h
-  {speed: 6, level: ThreatLevel.Medium}, // truck ~22 km/h
+  {speed: 8,  level: ThreatLevel.Medium}, // ~29 km/h — slow car
+  {speed: 12, level: ThreatLevel.Medium}, // ~43 km/h — moderate
+  {speed: 16, level: ThreatLevel.High},   // ~58 km/h — fast
+  {speed: 22, level: ThreatLevel.High},   // ~79 km/h — very fast
+  {speed: 28, level: ThreatLevel.High},   // ~101 km/h — speeding
 ];
+
+interface SimVehicle {
+  id: number;
+  distance: number; // metres, decreasing
+  speed: number;    // m/s
+  level: ThreatLevel;
+}
 
 function rand(min: number, max: number): number {
   return min + Math.random() * (max - min);
@@ -53,10 +91,23 @@ export class DebugSimulator {
   private tickTimer: ReturnType<typeof setInterval> | null = null;
   private spawnTimer: ReturnType<typeof setTimeout> | null = null;
   private running = false;
+  private trafficMode: TrafficMode = 'quiet';
   private prevConnectionStatus: ConnectionStatus | null = null;
   private holdover = new ThreatHoldover(threats => {
     useRadarStore.getState().setThreats(threats);
   });
+
+  setTrafficMode(mode: TrafficMode): void {
+    if (this.trafficMode === mode) return;
+    this.trafficMode = mode;
+    // Reschedule the next burst immediately so the new density takes effect
+    // without waiting for the current inter-burst timer to expire.
+    if (this.running && this.spawnTimer !== null) {
+      clearTimeout(this.spawnTimer);
+      this.spawnTimer = null;
+      this._scheduleBurst();
+    }
+  }
 
   start(): void {
     if (this.running) return;
@@ -69,8 +120,6 @@ export class DebugSimulator {
     store.setConnectionStatus(ConnectionStatus.Connected);
 
     this.tickTimer = setInterval(() => this._tick(), TICK_MS);
-
-    // Kick off first burst immediately
     this._scheduleBurst();
   }
 
@@ -97,15 +146,15 @@ export class DebugSimulator {
   }
 
   private _tick(): void {
-    // Simulate BLE packet dropout — drop this tick entirely with some probability
+    // Always advance physics — position moves regardless of BLE dropout
+    this.vehicles = this.vehicles
+      .map(v => ({...v, distance: v.distance - v.speed * (TICK_MS / 1000)}))
+      .filter(v => v.distance > 0);
+
+    // Simulate BLE packet dropout — skip the send, not the physics
     if (Math.random() < DROPOUT_PROBABILITY) {
       return;
     }
-
-    const dt = TICK_MS / 1000;
-    this.vehicles = this.vehicles
-      .map(v => ({...v, distance: v.distance - v.speed * dt}))
-      .filter(v => v.distance > 0);
 
     const threats: Threat[] = this.vehicles.map(v => ({
       speed: v.speed,
@@ -113,52 +162,52 @@ export class DebugSimulator {
       level: v.level,
     }));
 
-    // Route through ThreatHoldover — same path as real BLE packets
     this.holdover.feed(threats);
   }
 
   private _spawnVehicle(): void {
-    const template =
-      VEHICLE_TEMPLATES[Math.floor(Math.random() * VEHICLE_TEMPLATES.length)];
+    const template = VEHICLE_TEMPLATES[Math.floor(Math.random() * VEHICLE_TEMPLATES.length)];
     this.vehicles.push({
       id: this.nextId++,
-      distance: rand(100, 130),
+      distance: SPAWN_DISTANCE_M,
       speed: template.speed,
       level: template.level,
     });
   }
 
-  // Spawn a burst of `remaining` cars with intra-burst spacing, then schedule next burst
-  private _spawnBurst(remaining: number): void {
+  private _scheduleBurst(): void {
+    if (!this.running) return;
+    const profile = TRAFFIC_PROFILES[this.trafficMode];
+    const available = profile.maxConcurrent - this.vehicles.length;
+    if (available <= 0) {
+      this._scheduleNextBurst();
+      return;
+    }
+    // Integer in [burstMin, burstMax] inclusive, capped by available slots
+    const size = Math.min(
+      profile.burstMin + Math.floor(Math.random() * (profile.burstMax - profile.burstMin + 1)),
+      available,
+    );
+    this._spawnBurst(size, profile);
+  }
+
+  private _spawnBurst(remaining: number, profile: TrafficProfile): void {
     if (!this.running) return;
     this._spawnVehicle();
     remaining--;
 
     if (remaining > 0) {
-      // Next car in this burst
-      const delay = rand(INTRA_BURST_MIN_MS, INTRA_BURST_MAX_MS);
-      this.spawnTimer = setTimeout(() => this._spawnBurst(remaining), delay);
+      const delay = rand(profile.intraBurstMinMs, profile.intraBurstMaxMs);
+      this.spawnTimer = setTimeout(() => this._spawnBurst(remaining, profile), delay);
     } else {
-      // Burst done — wait for road to clear, then next burst
       this._scheduleNextBurst();
     }
-  }
-
-  private _scheduleBurst(): void {
-    if (!this.running) return;
-    const available = MAX_CONCURRENT - this.vehicles.length;
-    if (available <= 0) {
-      // Road is full — wait before trying again
-      this._scheduleNextBurst();
-      return;
-    }
-    const groupSize = Math.min(Math.floor(rand(1, 4)), available); // 1–3, capped
-    this._spawnBurst(groupSize);
   }
 
   private _scheduleNextBurst(): void {
     if (!this.running) return;
-    const delay = rand(INTER_BURST_MIN_MS, INTER_BURST_MAX_MS);
+    const profile = TRAFFIC_PROFILES[this.trafficMode];
+    const delay = rand(profile.interBurstMinMs, profile.interBurstMaxMs);
     this.spawnTimer = setTimeout(() => this._scheduleBurst(), delay);
   }
 }

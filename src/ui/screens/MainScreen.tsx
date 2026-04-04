@@ -35,6 +35,7 @@ export function MainScreen({onSwipeLeft}: Props): React.JSX.Element {
   const consecutiveFailures = useRadarStore(s => s.consecutiveFailures);
 
   const debugMode = useSettingsStore(s => s.debugMode);
+  const trafficMode = useSettingsStore(s => s.trafficMode);
   const debugLastAnnouncement = useRadarStore(s => s.debugLastAnnouncement);
   const debugTTSLog = useRadarStore(s => s.debugTTSLog);
   const simulatorRef = useRef(new DebugSimulator());
@@ -44,6 +45,11 @@ export function MainScreen({onSwipeLeft}: Props): React.JSX.Element {
     const sim = simulatorRef.current;
     return () => sim.stop();
   }, []);
+
+  // Keep simulator traffic mode in sync with settings
+  useEffect(() => {
+    simulatorRef.current.setTrafficMode(trafficMode);
+  }, [trafficMode]);
 
   const maxLevel = getMaxThreatLevel(threats);
   const isClear = threats.length === 0;

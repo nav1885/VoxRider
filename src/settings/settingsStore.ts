@@ -2,7 +2,7 @@ import {create} from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {AlertVerbosity} from '../alerts/types';
 import {DeviceInfo} from '../ble/types';
-import {Units} from './types';
+import {Units, TrafficMode} from './types';
 
 const STORAGE_KEY = '@voxrider_settings';
 
@@ -11,11 +11,13 @@ interface SettingsState {
   units: Units;
   pairedDevices: DeviceInfo[];
   debugMode: boolean;
+  trafficMode: TrafficMode;
   voiceId: string | null;
 
   setVerbosity: (v: AlertVerbosity) => void;
   setUnits: (u: Units) => void;
   setDebugMode: (on: boolean) => void;
+  setTrafficMode: (mode: TrafficMode) => void;
   setVoiceId: (id: string | null) => void;
   addPairedDevice: (device: DeviceInfo) => void;
   removePairedDevice: (deviceId: string) => void;
@@ -29,10 +31,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   units: 'imperial',
   pairedDevices: [],
   debugMode: false,
+  trafficMode: 'quiet', // debug-only — intentionally not persisted, resets to quiet on restart
   voiceId: null,
 
   setDebugMode: on => {
     set({debugMode: on});
+  },
+  setTrafficMode: mode => {
+    set({trafficMode: mode});
   },
   setVerbosity: v => {
     set({verbosity: v});

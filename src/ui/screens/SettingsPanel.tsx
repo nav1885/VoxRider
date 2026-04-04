@@ -16,7 +16,7 @@ import {openBugReport} from '../../utils/bugReport';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useSettingsStore} from '../../settings/settingsStore';
 import {AlertVerbosity} from '../../alerts/types';
-import {Units} from '../../settings/types';
+import {Units, TrafficMode} from '../../settings/types';
 import {Strings} from '../../constants/strings';
 
 // Character name + accent label per region
@@ -50,6 +50,8 @@ export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): Re
   const removePairedDevice = useSettingsStore(s => s.removePairedDevice);
   const debugMode = useSettingsStore(s => s.debugMode);
   const setDebugMode = useSettingsStore(s => s.setDebugMode);
+  const trafficMode = useSettingsStore(s => s.trafficMode);
+  const setTrafficMode = useSettingsStore(s => s.setTrafficMode);
   const voiceId = useSettingsStore(s => s.voiceId);
   const setVoiceId = useSettingsStore(s => s.setVoiceId);
 
@@ -220,6 +222,27 @@ export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): Re
             </TouchableOpacity>
           ))}
         </View>
+        {/* Traffic Mode — only shown when debug is on */}
+        {debugMode && (
+          <>
+            <Text style={[labelStyle, styles.sectionSpacing]}>TRAFFIC MODE</Text>
+            <View style={styles.segmentRow} testID="traffic-mode-control">
+              {(['quiet', 'busy', 'very_busy'] as TrafficMode[]).map(mode => (
+                <TouchableOpacity
+                  key={mode}
+                  testID={`traffic-${mode}`}
+                  accessibilityState={{selected: trafficMode === mode}}
+                  style={[styles.segment, styles.segmentThird, trafficMode === mode && styles.segmentActive]}
+                  onPress={() => setTrafficMode(mode)}>
+                  <Text style={[styles.segmentText, trafficMode === mode && styles.segmentTextActive]}>
+                    {mode === 'quiet' ? 'Quiet' : mode === 'busy' ? 'Busy' : 'Very Busy'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
+
         {/* Report a Bug */}
         <View style={styles.bugReportRow}>
           <TouchableOpacity
