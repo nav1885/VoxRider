@@ -90,7 +90,7 @@ describe('SettingsPanel', () => {
   describe('close', () => {
     it('calls onClose when ✕ tapped', () => {
       const onClose = jest.fn();
-      const {getByTestId} = render(<SettingsPanel onClose={onClose} onAddDevice={noop} />, {wrapper: Wrapper});
+      const {getByTestId} = render(<SettingsPanel onClose={onClose} onAddDevice={noop} onRemoveDevice={noop} />, {wrapper: Wrapper});
       fireEvent.press(getByTestId('settings-close'));
       expect(onClose).toHaveBeenCalledTimes(1);
     });

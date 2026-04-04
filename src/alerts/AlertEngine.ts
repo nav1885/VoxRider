@@ -219,6 +219,9 @@ export class AlertEngine {
 
   private _fireClear(): void {
     this._fire({count: 0, maxLevel: ThreatLevel.None, isEscalation: false, isClear: true});
-    this.lastSpokenState = {count: 0, maxLevel: ThreatLevel.None};
+    // Do NOT set lastSpokenState here. TTSEngine.updateLastSpoken() is authoritative —
+    // it writes lastSpokenState only after the utterance is actually spoken.
+    // If TTS is busy and drops this trigger, lastSpokenState.count remains > 0,
+    // so evaluateAfterTTSFinished() correctly restarts the clear debounce.
   }
 }
