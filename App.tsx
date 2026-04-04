@@ -14,11 +14,9 @@ import {useRadarStore} from './src/ble/radarStore';
 import {RealBLEManager} from './src/ble/RealBLEManager';
 import {DeviceInfo, ConnectionStatus} from './src/ble/types';
 import {NativeTTSBackend} from './src/alerts/NativeTTSBackend';
+import {AlertEngine} from './src/alerts/AlertEngine';
+import {TTSEngine} from './src/alerts/TTSEngine';
 import {ConnectionAlertEngine} from './src/alerts/ConnectionAlertEngine';
-import {buildAlertMessage} from './src/alerts/buildAlertMessage';
-import {getMaxThreatLevel} from './src/ble/parseRadarPacket';
-import {ThreatLevel} from './src/ble/types';
-import {Strings} from './src/constants/strings';
 
 export type RootStackParamList = {
   PairingStep1: undefined;
@@ -32,67 +30,28 @@ const Stack = createStackNavigator<RootStackParamList>();
 // Real BLE — connects to Garmin Varia RTL515 via react-native-ble-plx
 const bleManager = new RealBLEManager();
 
-// TTS backend
+// TTS backend + alert pipeline (REQ-AUD-002 / REQ-AUD-003)
 const ttsBackend = new NativeTTSBackend();
 const connectionAlertEngine = new ConnectionAlertEngine(msg =>
   ttsBackend.speak(msg, () => {}),
 );
+const alertEngine = new AlertEngine(() => {});
+const ttsEngine = new TTSEngine(
+  ttsBackend,
+  alertEngine,
+  useSettingsStore.getState().verbosity,
+  msg => useRadarStore.getState().setDebugLastAnnouncement(msg),
+);
 
-// Announce threat changes, respecting the user's verbosity setting.
-//
-// Rules (per user feedback from road testing):
-//   • Announce when a new car appears (count increases).
-//   • Announce when threat escalates medium → high (safety).
-//   • Silent when a car passes (count decreases) — just update the counter.
-//   • Debounced "Clear" when all cars are gone.
-//   • Never re-announce the same car after a brief BLE dropout — VehicleTracker
-//     holds vehicles across short absences so count stays stable.
-let lastAnnouncedCount = 0;
-let lastAnnouncedMaxLevel: ThreatLevel = ThreatLevel.None;
-let clearTimer: ReturnType<typeof setTimeout> | null = null;
+// Keep verbosity in sync when user changes it in Settings
+useSettingsStore.subscribe(state => {
+  ttsEngine.setVerbosity(state.verbosity);
+});
 
-function announceThreats(count: number, maxLevel: ReturnType<typeof getMaxThreatLevel>) {
-  const countIncreased = count > lastAnnouncedCount;
-  const isEscalation =
-    count > 0 &&
-    maxLevel === ThreatLevel.High &&
-    lastAnnouncedMaxLevel < ThreatLevel.High;
-
-  if (count > 0 && (countIncreased || isEscalation)) {
-    // New car(s) appeared or threat escalated — cancel any pending clear and speak
-    if (clearTimer) {
-      clearTimeout(clearTimer);
-      clearTimer = null;
-    }
-    lastAnnouncedCount = count;
-    lastAnnouncedMaxLevel = maxLevel;
-    const verbosity = useSettingsStore.getState().verbosity;
-    const msg = buildAlertMessage(
-      {count, maxLevel, isEscalation, isClear: false},
-      verbosity,
-    );
-    useRadarStore.getState().setDebugLastAnnouncement(msg);
-    ttsBackend.speak(msg, () => {});
-  } else if (count === 0 && lastAnnouncedCount > 0) {
-    // All cars gone — debounced clear
-    lastAnnouncedCount = 0;
-    lastAnnouncedMaxLevel = ThreatLevel.None;
-    clearTimer = setTimeout(() => {
-      const msg = Strings.ttsClear;
-      useRadarStore.getState().setDebugLastAnnouncement(msg);
-      ttsBackend.speak(msg, () => {});
-      clearTimer = null;
-    }, 2000);
-  } else if (count < lastAnnouncedCount && count > 0) {
-    // Car(s) passed but others remain — update silently, no announcement
-    lastAnnouncedCount = count;
-    lastAnnouncedMaxLevel = maxLevel;
-  }
-}
-
-// Subscribe to radar store
+// Drive the alert pipeline from every BLE state update
 useRadarStore.subscribe(state => {
-  announceThreats(state.threats.length, getMaxThreatLevel(state.threats));
+  ttsEngine.updateState(state.threats, state.connectionStatus);
+  alertEngine.evaluate(state.threats, state.connectionStatus);
   if (!useSettingsStore.getState().debugMode) {
     connectionAlertEngine.onStatusChange(state.connectionStatus);
   }

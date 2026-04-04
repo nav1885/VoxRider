@@ -25,11 +25,18 @@ export class TTSEngine {
   private verbosity: AlertVerbosity;
   private backend: ITTSBackend;
   private alertEngine: AlertEngine;
+  private onSpeak: ((message: string) => void) | null;
 
-  constructor(backend: ITTSBackend, alertEngine: AlertEngine, verbosity: AlertVerbosity) {
+  constructor(
+    backend: ITTSBackend,
+    alertEngine: AlertEngine,
+    verbosity: AlertVerbosity,
+    onSpeak?: (message: string) => void,
+  ) {
     this.backend = backend;
     this.alertEngine = alertEngine;
     this.verbosity = verbosity;
+    this.onSpeak = onSpeak ?? null;
     // Close the loop: AlertEngine fires triggers → TTSEngine speaks them
     alertEngine.setOnTrigger((trigger) => this.handleTrigger(trigger));
   }
@@ -94,6 +101,7 @@ export class TTSEngine {
     });
 
     this._startWatchdog();
+    this.onSpeak?.(message);
 
     this.backend.speak(message, () => {
       this._onFinished();

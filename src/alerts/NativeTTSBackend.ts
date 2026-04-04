@@ -13,31 +13,54 @@ const {VoxTTS} = NativeModules;
  * silently stalls after the first utterance on Android 12+ and OEM devices.
  *
  * On iOS we use react-native-tts directly (no equivalent issue).
+ *
+ * onFinished is called when the utterance completes naturally (onDone /
+ * tts-finish). It is NOT called when interrupted by stop() or QUEUE_FLUSH —
+ * the next speak() call sets a new onFinished for the replacement utterance.
+ * TTSEngine's 10 s watchdog covers any case where onFinished never fires.
  */
 export class NativeTTSBackend implements ITTSBackend {
   private eventSubscription: ReturnType<NativeEventEmitter['addListener']> | null = null;
+  private iosFinishHandler: (() => void) | null = null;
+  private pendingOnFinished: (() => void) | null = null;
 
   async initialize(): Promise<void> {
     if (Platform.OS === 'android' && VoxTTS) {
-      // Forward every native TTS lifecycle event to the debug label
       const emitter = new NativeEventEmitter(VoxTTS);
       this.eventSubscription = emitter.addListener('VoxTTSEvent', (msg: string) => {
-        // Use a separate field so VoxTTS events don't trigger the main
-        // store subscription that runs announceThreats
         useRadarStore.getState().setDebugTTSLog(msg);
+        // onDone = utterance finished naturally → snapshot-on-completion
+        if (msg.startsWith('onDone')) {
+          const cb = this.pendingOnFinished;
+          this.pendingOnFinished = null;
+          cb?.();
+        }
+        // onStop = interrupted (QUEUE_FLUSH or explicit stop) → ignore;
+        // the replacement speak() or TTSEngine watchdog handles state reset.
       });
     } else {
       await Tts.getInitStatus();
       await Tts.setIgnoreSilentSwitch('ignore');
       await Tts.setDefaultRate(0.45);
+      this.iosFinishHandler = () => {
+        const cb = this.pendingOnFinished;
+        this.pendingOnFinished = null;
+        cb?.();
+      };
+      Tts.addEventListener('tts-finish', this.iosFinishHandler);
     }
   }
 
   destroy(): void {
     this.eventSubscription?.remove();
+    if (this.iosFinishHandler) {
+      Tts.removeEventListener('tts-finish', this.iosFinishHandler);
+      this.iosFinishHandler = null;
+    }
   }
 
-  speak(utterance: string, _onFinished: () => void): void {
+  speak(utterance: string, onFinished: () => void): void {
+    this.pendingOnFinished = onFinished;
     if (Platform.OS === 'android') {
       VoxTTS?.speak(utterance);
     } else {
@@ -47,6 +70,9 @@ export class NativeTTSBackend implements ITTSBackend {
   }
 
   stop(): void {
+    // Clear callback before stopping — interrupted utterances don't trigger
+    // snapshot-on-completion; the caller (TTSEngine) manages state directly.
+    this.pendingOnFinished = null;
     if (Platform.OS === 'android') {
       VoxTTS?.stop();
     } else {
