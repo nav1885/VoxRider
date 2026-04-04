@@ -5,21 +5,11 @@ import {parseRadarPacket} from './parseRadarPacket';
 import {useRadarStore} from './radarStore';
 import {ConnectionStatus} from './types';
 import {ThreatHoldover} from './ThreatHoldover';
+import {SUPPORTED_DEVICES} from './deviceProfiles';
 
-/**
- * Varia RTL515 BLE UUIDs (confirmed via pycycling / harbour-tacho community research)
- * Service: 6A4E3200-667B-11E3-949A-0800200C9A66
- * Radar characteristic: 6A4E3203-667B-11E3-949A-0800200C9A66
- * Battery service: 0x180F (standard BLE)
- * Battery characteristic: 0x2A19 (standard BLE)
- */
-const RADAR_SERVICE_UUID = '6A4E3200-667B-11E3-949A-0800200C9A66';
-const RADAR_CHAR_UUID = '6A4E3203-667B-11E3-949A-0800200C9A66';
+// Standard BLE battery service (same across all devices)
 const BATTERY_SERVICE_UUID = '0000180F-0000-1000-8000-00805F9B34FB';
 const BATTERY_CHAR_UUID = '00002A19-0000-1000-8000-00805F9B34FB';
-
-/** RTL device name prefix filter */
-const RTL_PREFIX = 'RTL';
 
 /** Scan duration before returning discovered devices */
 const SCAN_DURATION_MS = 10000;
@@ -32,6 +22,7 @@ const RECONNECT_SLOW_INTERVAL_MS = 10000;
 export class RealBLEManager implements IBLEManager {
   private bleManager: BleManager;
   private connectedDeviceId: string | null = null;
+  private activeProfile = SUPPORTED_DEVICES[0];
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectStartTime = 0;
   private radarSubscription: {remove: () => void} | null = null;
@@ -83,7 +74,7 @@ export class RealBLEManager implements IBLEManager {
             reject(error);
             return;
           }
-          if (device && device.name?.startsWith(RTL_PREFIX)) {
+          if (device && SUPPORTED_DEVICES.some(p => device.name?.startsWith(p.namePrefix))) {
             discovered.set(device.id, {
               id: device.id,
               name: device.name ?? device.id,
@@ -107,22 +98,26 @@ export class RealBLEManager implements IBLEManager {
       useRadarStore.getState();
 
     setConnectionStatus(ConnectionStatus.Connecting);
+    // Reset profile to default before connect — prevents stale profile being
+    // used if a previous connect() attempt failed mid-way through matching.
+    this.activeProfile = SUPPORTED_DEVICES[0];
 
     try {
       const device = await this.bleManager.connectToDevice(deviceId);
       await device.discoverAllServicesAndCharacteristics();
 
-      // Verify radar service is present
+      // Identify which device profile matches this device
       const services = await device.services();
-      const hasRadar = services.some(
-        s => s.uuid.toUpperCase() === RADAR_SERVICE_UUID.toUpperCase(),
+      const matchedProfile = SUPPORTED_DEVICES.find(p =>
+        services.some(s => s.uuid.toUpperCase() === p.serviceUuid.toUpperCase()),
       );
-      if (!hasRadar) {
-        // Service not found — treat as failure (likely conflict with Garmin app)
+      if (!matchedProfile) {
+        // No known radar service found — likely conflict with Garmin app
         await this.bleManager.cancelDeviceConnection(deviceId);
         incrementFailures();
         throw new Error('Radar BLE service not found — another app may be connected');
       }
+      this.activeProfile = matchedProfile;
 
       this.connectedDeviceId = deviceId;
       resetFailures();
@@ -227,8 +222,8 @@ export class RealBLEManager implements IBLEManager {
 
   private _subscribeToRadar(device: Device): void {
     this.radarSubscription = device.monitorCharacteristicForService(
-      RADAR_SERVICE_UUID,
-      RADAR_CHAR_UUID,
+      this.activeProfile.serviceUuid,
+      this.activeProfile.radarCharUuid,
       (error, characteristic) => {
         if (error || !characteristic?.value) {
           return;
