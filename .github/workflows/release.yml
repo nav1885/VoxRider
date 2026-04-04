@@ -68,3 +68,50 @@ jobs:
         with:
           files: android/app/build/outputs/bundle/release/app-release.aab
           generate_release_notes: true
+
+  build-ios:
+    name: Build iOS (simulator)
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Install CocoaPods dependencies
+        run: |
+          cd ios
+          pod install
+
+      - name: Build for iOS simulator
+        run: |
+          xcodebuild \
+            -workspace ios/VoxRider.xcworkspace \
+            -scheme VoxRider \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -derivedDataPath ios/build \
+            CODE_SIGNING_ALLOWED=NO \
+            build | xcpretty || xcodebuild \
+            -workspace ios/VoxRider.xcworkspace \
+            -scheme VoxRider \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -derivedDataPath ios/build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: voxrider-ios-simulator
+          path: ios/build/Build/Products/Debug-iphonesimulator/VoxRider.app
+          retention-days: 7
