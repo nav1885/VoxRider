@@ -80,12 +80,41 @@ describe('ThreatHoldover', () => {
 
     it('holds the pending count — takes the last value seen when timer fires', () => {
       holdover.feed([med(), med(60)]);  // 2 cars
-      holdover.feed([med()]);           // drops to 1 — hold starts
+      holdover.feed([med()]);           // drops to 1 — hold starts, no emit
+      expect(updates).toHaveLength(1);  // still showing 2 cars, not 1
       jest.advanceTimersByTime(500);
-      holdover.feed([]);                // drops to 0 — updates pending
+      holdover.feed([]);                // drops to 0 — updates pending, no emit
+      expect(updates).toHaveLength(1);  // still no new emit
       jest.advanceTimersByTime(2001);   // hold fires with 0
       const last = updates[updates.length - 1];
       expect(last).toHaveLength(0);
+    });
+  });
+
+  describe('pass-through eviction (distance ≤ 30m)', () => {
+    it('evicts immediately when car was close on count drop', () => {
+      holdover.feed([med(25)]); // car at 25m — within pass threshold
+      holdover.feed([]);        // car disappears (passed)
+      // Should evict immediately — no 2s hold
+      expect(updates).toHaveLength(2);
+      expect(updates[1]).toHaveLength(0);
+    });
+
+    it('holds when car was far on count drop', () => {
+      holdover.feed([med(80)]); // car at 80m — mid-road dropout
+      holdover.feed([]);
+      // Should NOT evict immediately
+      expect(updates).toHaveLength(1);
+      jest.advanceTimersByTime(2001);
+      expect(updates).toHaveLength(2);
+      expect(updates[1]).toHaveLength(0);
+    });
+
+    it('evicts immediately at exactly 30m boundary', () => {
+      holdover.feed([med(30)]); // right on the threshold
+      holdover.feed([]);
+      expect(updates).toHaveLength(2);
+      expect(updates[1]).toHaveLength(0);
     });
   });
 
