@@ -1,5 +1,6 @@
 import {Threat, ThreatLevel, ConnectionStatus} from '../ble/types';
 import {useRadarStore} from '../ble/radarStore';
+import {ThreatHoldover} from '../ble/ThreatHoldover';
 
 /**
  * DebugSimulator — simulates occasional traffic on a quiet road.
@@ -13,6 +14,9 @@ import {useRadarStore} from '../ble/radarStore';
 
 const TICK_MS = 300;
 const MAX_CONCURRENT = 4;
+
+// Probability of dropping a tick entirely (simulates BLE packet loss)
+const DROPOUT_PROBABILITY = 0.12; // ~12% — realistic for BLE in the field
 
 // Gap between cars within a burst
 const INTRA_BURST_MIN_MS = 2000;
@@ -50,6 +54,9 @@ export class DebugSimulator {
   private spawnTimer: ReturnType<typeof setTimeout> | null = null;
   private running = false;
   private prevConnectionStatus: ConnectionStatus | null = null;
+  private holdover = new ThreatHoldover(threats => {
+    useRadarStore.getState().setThreats(threats);
+  });
 
   start(): void {
     if (this.running) return;
@@ -78,10 +85,9 @@ export class DebugSimulator {
       this.spawnTimer = null;
     }
     this.vehicles = [];
-    const store = useRadarStore.getState();
-    store.setThreats([]);
+    this.holdover.reset();
     if (this.prevConnectionStatus !== null) {
-      store.setConnectionStatus(this.prevConnectionStatus);
+      useRadarStore.getState().setConnectionStatus(this.prevConnectionStatus);
       this.prevConnectionStatus = null;
     }
   }
@@ -91,6 +97,11 @@ export class DebugSimulator {
   }
 
   private _tick(): void {
+    // Simulate BLE packet dropout — drop this tick entirely with some probability
+    if (Math.random() < DROPOUT_PROBABILITY) {
+      return;
+    }
+
     const dt = TICK_MS / 1000;
     this.vehicles = this.vehicles
       .map(v => ({...v, distance: v.distance - v.speed * dt}))
@@ -101,7 +112,9 @@ export class DebugSimulator {
       distance: Math.round(v.distance),
       level: v.level,
     }));
-    useRadarStore.getState().setThreats(threats);
+
+    // Route through ThreatHoldover — same path as real BLE packets
+    this.holdover.feed(threats);
   }
 
   private _spawnVehicle(): void {
