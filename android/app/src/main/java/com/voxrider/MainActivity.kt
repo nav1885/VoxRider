@@ -1,6 +1,8 @@
 package com.voxrider
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -16,9 +18,15 @@ class MainActivity : ReactActivity() {
 
   override fun onStart() {
     super.onStart()
-    // Start the foreground service so it keeps running when the screen locks.
-    // Using onStart (not onCreate) ensures it also restarts after the user
-    // returns from the recents switcher or a phone call.
+    // Android 14+ (API 34): starting a foreground service with type connectedDevice
+    // requires BLUETOOTH_CONNECT to be granted at call time — not just declared.
+    // On a fresh install, runtime permissions aren't granted yet. Skip here and let
+    // onStart() fire again after the user returns from the JS permission dialog.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      val granted = checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==
+          PackageManager.PERMISSION_GRANTED
+      if (!granted) return
+    }
     val intent = Intent(this, RadarService::class.java)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       startForegroundService(intent)
