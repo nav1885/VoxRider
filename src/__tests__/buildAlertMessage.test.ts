@@ -7,8 +7,7 @@ const trigger = (
   count: number,
   maxLevel: ThreatLevel,
   isClear = false,
-  isEscalation = false,
-): AlertTrigger => ({count, maxLevel, isClear, isEscalation});
+): AlertTrigger => ({count, maxLevel, isClear});
 
 describe('buildAlertMessage', () => {
   describe('clear', () => {

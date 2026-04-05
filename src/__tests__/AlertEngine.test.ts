@@ -26,8 +26,8 @@ describe('AlertEngine', () => {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  /** Advance past the change debounce (1.5 s). */
-  const flushDebounce = () => jest.advanceTimersByTime(1501);
+  /** Advance past the change debounce (2 s). */
+  const flushDebounce = () => jest.advanceTimersByTime(2001);
 
   /** Advance past the change cap (4 s). */
   const flushCap = () => jest.advanceTimersByTime(4001);
@@ -62,11 +62,11 @@ describe('AlertEngine', () => {
       engine.evaluate([medium()], connected);
       flushDebounce();
       expect(fired).toHaveLength(1);
-      expect(fired[0]).toMatchObject({count: 1, isClear: false, isEscalation: false});
+      expect(fired[0]).toMatchObject({count: 1, isClear: false});
     });
 
     it('fires on one → two after debounce', () => {
-      engine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.Medium});
+      engine.updateLastSpoken({count: 1});
       engine.evaluate([medium(), medium()], connected);
       flushDebounce();
       expect(fired).toHaveLength(1);
@@ -87,26 +87,34 @@ describe('AlertEngine', () => {
     });
 
     it('does not fire for same count', () => {
-      engine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.Medium});
+      engine.updateLastSpoken({count: 1});
       engine.evaluate([medium()], connected);
+      flushDebounce();
+      expect(fired).toHaveLength(0);
+    });
+
+    it('does not fire when level changes but count stays the same', () => {
+      // Speed/level never triggers audio — count is the only driver
+      engine.updateLastSpoken({count: 1});
+      engine.evaluate([high()], connected); // same count=1, different level
       flushDebounce();
       expect(fired).toHaveLength(0);
     });
   });
 
-  // ── Count decreases (new behaviour — fixes #41) ────────────────────────────
+  // ── Count decreases ────────────────────────────────────────────────────────
 
   describe('count decreases (not to zero)', () => {
     it('announces updated count when count drops (3 → 1)', () => {
-      engine.updateLastSpoken({count: 3, maxLevel: ThreatLevel.Medium});
+      engine.updateLastSpoken({count: 3});
       engine.evaluate([medium()], connected); // now 1
       flushDebounce();
       expect(fired).toHaveLength(1);
-      expect(fired[0]).toMatchObject({count: 1, isClear: false, isEscalation: false});
+      expect(fired[0]).toMatchObject({count: 1, isClear: false});
     });
 
     it('announces updated count when count drops by one (2 → 1)', () => {
-      engine.updateLastSpoken({count: 2, maxLevel: ThreatLevel.Medium});
+      engine.updateLastSpoken({count: 2});
       engine.evaluate([medium()], connected);
       flushDebounce();
       expect(fired).toHaveLength(1);
@@ -114,7 +122,7 @@ describe('AlertEngine', () => {
     });
 
     it('batches rapid decreases — announces final stable count once', () => {
-      engine.updateLastSpoken({count: 4, maxLevel: ThreatLevel.Medium});
+      engine.updateLastSpoken({count: 4});
       engine.evaluate([medium(), medium(), medium()], connected); // 4→3
       jest.advanceTimersByTime(300);
       engine.evaluate([medium(), medium()], connected); // 3→2
@@ -127,8 +135,7 @@ describe('AlertEngine', () => {
     });
 
     it('does not fire when count oscillates back to lastSpoken before debounce fires', () => {
-      // lastSpoken=2, drop to 1, then back to 2 before debounce
-      engine.updateLastSpoken({count: 2, maxLevel: ThreatLevel.Medium});
+      engine.updateLastSpoken({count: 2});
       engine.evaluate([medium()], connected); // 2→1
       jest.advanceTimersByTime(500);
       engine.evaluate([medium(), medium()], connected); // back to 2
@@ -138,11 +145,24 @@ describe('AlertEngine', () => {
     });
   });
 
+  // ── Max level in message ───────────────────────────────────────────────────
+
+  describe('max level during debounce window', () => {
+    it('reports max level seen during window, not just latest', () => {
+      engine.evaluate([high()], connected);           // high in window
+      jest.advanceTimersByTime(500);
+      engine.evaluate([medium()], connected);         // drops to medium
+      // count still 1 vs lastSpoken 0 — debounce fires with count=1
+      flushDebounce();
+      expect(fired).toHaveLength(1);
+      expect(fired[0].maxLevel).toBe(ThreatLevel.High); // max of window, not latest
+    });
+  });
+
   // ── Debounce cap ───────────────────────────────────────────────────────────
 
   describe('debounce cap (busy road)', () => {
     it('forces announcement within 4 s even when count keeps changing', () => {
-      // Count changes every 500 ms — debounce keeps restarting
       engine.evaluate([medium()], connected);
       for (let i = 0; i < 7; i++) {
         jest.advanceTimersByTime(500);
@@ -150,58 +170,19 @@ describe('AlertEngine', () => {
         jest.advanceTimersByTime(500);
         engine.evaluate([medium()], connected);
       }
-      // Cap (4 s) should have fired by now
       expect(fired.length).toBeGreaterThanOrEqual(1);
     });
 
     it('cap fires once — a second cap does not start until after announce', () => {
       engine.evaluate([medium()], connected);
       jest.advanceTimersByTime(500);
-      engine.evaluate([medium(), medium()], connected); // keep debounce alive
+      engine.evaluate([medium(), medium()], connected);
 
-      // Cap fires at 4 s
       flushCap();
       const countAfterCap = fired.length;
 
-      // After that, no stale timers fire again
       jest.advanceTimersByTime(4001);
       expect(fired.length).toBe(countAfterCap);
-    });
-  });
-
-  // ── Escalation ────────────────────────────────────────────────────────────
-
-  describe('escalation (medium → high)', () => {
-    it('fires immediately — no debounce wait', () => {
-      engine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.Medium});
-      engine.evaluate([high()], connected);
-      // No time advance — should already be fired
-      expect(fired).toHaveLength(1);
-      expect(fired[0]).toMatchObject({isEscalation: true, maxLevel: ThreatLevel.High});
-    });
-
-    it('cancels any pending debounced change when escalation fires', () => {
-      // First, queue a count-increase debounce
-      engine.evaluate([medium(), medium()], connected); // pending: 2 cars
-      jest.advanceTimersByTime(500);
-      // Now escalation arrives
-      engine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.Medium});
-      engine.evaluate([high()], connected);
-      expect(fired).toHaveLength(1);
-      expect(fired[0].isEscalation).toBe(true);
-
-      // The queued debounce should not fire
-      flushDebounce();
-      expect(fired).toHaveLength(1);
-    });
-
-    it('does not fire on high → medium de-escalation', () => {
-      engine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.High});
-      engine.evaluate([medium()], connected);
-      flushDebounce();
-      // De-escalation is a decrease — it fires as a normal debounced change,
-      // NOT as an escalation
-      expect(fired[0]?.isEscalation).toBeFalsy();
     });
   });
 
@@ -209,7 +190,7 @@ describe('AlertEngine', () => {
 
   describe('all clear', () => {
     it('fires clear after 3 s debounce', () => {
-      engine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.Medium});
+      engine.updateLastSpoken({count: 1});
       engine.evaluate([], connected);
       expect(fired).toHaveLength(0);
 
@@ -219,11 +200,11 @@ describe('AlertEngine', () => {
     });
 
     it('resets clear debounce if threats reappear within 3 s', () => {
-      engine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.Medium});
+      engine.updateLastSpoken({count: 1});
       engine.evaluate([], connected);
       jest.advanceTimersByTime(2000);
 
-      engine.evaluate([medium()], connected); // threats back
+      engine.evaluate([medium()], connected);
       jest.advanceTimersByTime(3001);
 
       const clearFired = fired.filter(f => f.isClear);
@@ -231,7 +212,7 @@ describe('AlertEngine', () => {
     });
 
     it('forces clear after 5 s cap', () => {
-      engine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.Medium});
+      engine.updateLastSpoken({count: 1});
       engine.evaluate([], connected);
 
       jest.advanceTimersByTime(5001);
@@ -260,7 +241,7 @@ describe('AlertEngine', () => {
 
   describe('evaluateAfterTTSFinished', () => {
     it('schedules debounced update if count increased since last spoken', () => {
-      engine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.Medium});
+      engine.updateLastSpoken({count: 1});
       engine.evaluateAfterTTSFinished([medium(), medium()], connected);
       flushDebounce();
       expect(fired).toHaveLength(1);
@@ -268,33 +249,31 @@ describe('AlertEngine', () => {
     });
 
     it('schedules debounced update if count decreased since last spoken', () => {
-      engine.updateLastSpoken({count: 3, maxLevel: ThreatLevel.Medium});
+      engine.updateLastSpoken({count: 3});
       engine.evaluateAfterTTSFinished([medium()], connected);
       flushDebounce();
       expect(fired).toHaveLength(1);
       expect(fired[0].count).toBe(1);
     });
 
-    it('does not fire if state unchanged', () => {
-      engine.updateLastSpoken({count: 2, maxLevel: ThreatLevel.Medium});
+    it('does not fire if count unchanged', () => {
+      engine.updateLastSpoken({count: 2});
       engine.evaluateAfterTTSFinished([medium(), medium()], connected);
       flushDebounce();
       expect(fired).toHaveLength(0);
     });
 
-    it('fires escalation immediately', () => {
-      engine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.Medium});
-      engine.evaluateAfterTTSFinished([high()], connected);
-      expect(fired).toHaveLength(1);
-      expect(fired[0].isEscalation).toBe(true);
+    it('does not fire when only level changed but count is same', () => {
+      engine.updateLastSpoken({count: 1});
+      engine.evaluateAfterTTSFinished([high()], connected); // count still 1
+      flushDebounce();
+      expect(fired).toHaveLength(0);
     });
 
-    // Bug #43 fix
     it('restarts clear debounce when clear was dropped while speaking', () => {
-      engine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.Medium});
-      // TTS was speaking when threats cleared — evaluateAfterTTSFinished is called with count=0
+      engine.updateLastSpoken({count: 1});
       engine.evaluateAfterTTSFinished([], connected);
-      expect(fired).toHaveLength(0); // not yet
+      expect(fired).toHaveLength(0);
 
       jest.advanceTimersByTime(3001);
       expect(fired).toHaveLength(1);
@@ -302,15 +281,13 @@ describe('AlertEngine', () => {
     });
 
     it('does not double-fire clear if debounce already running', () => {
-      engine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.Medium});
-      // Normal evaluate starts the clear debounce
+      engine.updateLastSpoken({count: 1});
       engine.evaluate([], connected);
-      // Then TTS finishes and also calls evaluateAfterTTSFinished
       engine.evaluateAfterTTSFinished([], connected);
 
       jest.advanceTimersByTime(5001);
       const clearFired = fired.filter(f => f.isClear);
-      expect(clearFired).toHaveLength(1); // only one clear
+      expect(clearFired).toHaveLength(1);
     });
   });
 });

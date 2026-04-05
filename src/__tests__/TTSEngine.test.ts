@@ -34,12 +34,10 @@ describe('TTSEngine', () => {
   let engine: TTSEngine;
   let alertEngine: AlertEngine;
   let backend: ReturnType<typeof makeBackend>;
-  let alertsFired: ReturnType<typeof makeBackend>['lastUtterance'][];
 
   beforeEach(() => {
     jest.useFakeTimers();
     backend = makeBackend();
-    alertsFired = [];
     alertEngine = new AlertEngine(() => {});
     engine = new TTSEngine(backend, alertEngine, AlertVerbosity.Detailed);
     engine.updateState([], connected);
@@ -52,110 +50,95 @@ describe('TTSEngine', () => {
 
   describe('basic speech', () => {
     it('speaks alert message via backend', () => {
-      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isEscalation: false, isClear: false});
+      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isClear: false});
       expect(backend.lastUtterance).toBe('1 vehicle, medium speed');
     });
 
     it('speaks clear message', () => {
-      engine.handleTrigger({count: 0, maxLevel: ThreatLevel.None, isEscalation: false, isClear: true});
+      engine.handleTrigger({count: 0, maxLevel: ThreatLevel.None, isClear: true});
       expect(backend.lastUtterance).toBe('Clear');
     });
   });
 
-  describe('non-escalation dropped while speaking', () => {
-    it('drops second non-escalation trigger while speaking', () => {
-      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isEscalation: false, isClear: false});
+  describe('TTS always finishes in full — no interruptions', () => {
+    it('drops second trigger while speaking', () => {
+      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isClear: false});
       const firstUtterance = backend.lastUtterance;
 
-      engine.handleTrigger({count: 2, maxLevel: ThreatLevel.Medium, isEscalation: false, isClear: false});
+      engine.handleTrigger({count: 2, maxLevel: ThreatLevel.Medium, isClear: false});
       expect(backend.lastUtterance).toBe(firstUtterance); // unchanged
+      expect(backend.stopCalled).toBe(false);
     });
-  });
 
-  describe('escalation interrupt', () => {
-    it('interrupts current speech on escalation', () => {
-      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isEscalation: false, isClear: false});
-      expect(backend.lastUtterance).toBe('1 vehicle, medium speed');
-
-      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.High, isEscalation: true, isClear: false});
-      expect(backend.stopCalled).toBe(true);
-      expect(backend.lastUtterance).toBe('1 vehicle, high speed');
+    it('never calls stop on the backend for any trigger', () => {
+      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isClear: false});
+      engine.handleTrigger({count: 2, maxLevel: ThreatLevel.High, isClear: false});
+      engine.handleTrigger({count: 3, maxLevel: ThreatLevel.High, isClear: false});
+      expect(backend.stopCalled).toBe(false);
     });
   });
 
   describe('snapshot-on-completion', () => {
     it('re-evaluates state after TTS finishes — fires after debounce if count changed', () => {
-      // Speak about 1 medium vehicle
-      alertEngine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.Medium});
+      alertEngine.updateLastSpoken({count: 1});
       engine.updateState([medium(), medium()], connected); // 2 now
-      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isEscalation: false, isClear: false});
+      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isClear: false});
 
-      // Finish TTS — schedules debounce for 2-vehicle state
       const utteranceBefore = backend.lastUtterance;
       backend.triggerFinished();
       expect(backend.lastUtterance).toBe(utteranceBefore); // not yet
 
-      jest.advanceTimersByTime(1501); // debounce fires
+      jest.advanceTimersByTime(2001); // debounce fires
       expect(backend.lastUtterance).toBe('2 vehicles, medium speed');
     });
 
-    it('does not re-fire if state unchanged after finish', () => {
-      alertEngine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.Medium});
+    it('does not re-fire if count unchanged after finish', () => {
+      alertEngine.updateLastSpoken({count: 1});
       engine.updateState([medium()], connected);
-      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isEscalation: false, isClear: false});
+      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isClear: false});
 
       const utteranceBefore = backend.lastUtterance;
       backend.triggerFinished();
-      jest.advanceTimersByTime(1501);
+      jest.advanceTimersByTime(2001);
       expect(backend.lastUtterance).toBe(utteranceBefore);
     });
 
-    it('does not re-fire if state de-escalated after finish', () => {
-      alertEngine.updateLastSpoken({count: 1, maxLevel: ThreatLevel.High});
-      engine.updateState([medium()], connected);
-      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.High, isEscalation: true, isClear: false});
+    it('does not re-fire if only level changed but count is same after finish', () => {
+      alertEngine.updateLastSpoken({count: 1});
+      engine.updateState([high()], connected); // count still 1
+      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isClear: false});
 
       const utteranceBefore = backend.lastUtterance;
       backend.triggerFinished();
-      jest.advanceTimersByTime(1501);
-      // De-escalation is a change — it fires as a count-decrease style update
-      // but not as an escalation. The utterance may differ; verify it's not an escalation.
-      if (backend.lastUtterance !== utteranceBefore) {
-        expect(backend.stopCalled).toBe(false); // no interrupt
-      }
+      jest.advanceTimersByTime(2001);
+      expect(backend.lastUtterance).toBe(utteranceBefore);
     });
   });
 
   describe('10s watchdog timer', () => {
     it('force-resets speaking state if onFinished never fires', () => {
-      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isEscalation: false, isClear: false});
-      // Never call triggerFinished — simulate stuck TTS
+      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isClear: false});
 
-      // Advance past watchdog
       jest.advanceTimersByTime(10001);
 
-      // Should now accept new non-escalation triggers (no longer "speaking")
-      engine.handleTrigger({count: 2, maxLevel: ThreatLevel.Medium, isEscalation: false, isClear: false});
+      // Should now accept new triggers (no longer "speaking")
+      engine.handleTrigger({count: 2, maxLevel: ThreatLevel.Medium, isClear: false});
       expect(backend.lastUtterance).toBe('2 vehicles, medium speed');
     });
 
     it('cancels watchdog when onFinished fires normally', () => {
-      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isEscalation: false, isClear: false});
+      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isClear: false});
       backend.triggerFinished();
-
-      // Watchdog should be cleared — advancing time should not cause issues
       expect(() => jest.advanceTimersByTime(10001)).not.toThrow();
     });
   });
 
   describe('audio focus loss', () => {
     it('resets speaking state on audio focus loss', () => {
-      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isEscalation: false, isClear: false});
-
+      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isClear: false});
       engine.onAudioFocusLoss();
 
-      // Should accept new triggers now
-      engine.handleTrigger({count: 2, maxLevel: ThreatLevel.Medium, isEscalation: false, isClear: false});
+      engine.handleTrigger({count: 2, maxLevel: ThreatLevel.Medium, isClear: false});
       expect(backend.lastUtterance).toBe('2 vehicles, medium speed');
     });
   });

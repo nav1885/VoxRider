@@ -12,12 +12,10 @@ export interface AlertSettings {
 
 export interface AlertTrigger {
   count: number;
-  maxLevel: ThreatLevel;
-  isEscalation: boolean; // medium → high, bypasses throttle
+  maxLevel: ThreatLevel; // max level seen during debounce window — for message only
   isClear: boolean;
 }
 
 export interface LastSpokenState {
-  count: number;
-  maxLevel: ThreatLevel;
+  count: number; // level never triggers alerts — count is the only thing that matters
 }

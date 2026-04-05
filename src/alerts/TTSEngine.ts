@@ -51,18 +51,11 @@ export class TTSEngine {
     this.currentConnectionStatus = connectionStatus;
   }
 
-  /** Fire an alert. Escalations interrupt; others are dropped if already speaking. */
+  /** Fire an alert. Always dropped if TTS is speaking — snapshot-on-completion re-evaluates. */
   handleTrigger(trigger: AlertTrigger): void {
-    if (this.speaking && !trigger.isEscalation) {
-      // Non-escalation: discard — snapshot-on-completion will re-evaluate
+    if (this.speaking) {
+      // TTS always finishes in full. Current state re-evaluated on completion.
       return;
-    }
-
-    if (trigger.isEscalation && this.speaking) {
-      // Interrupt current speech
-      this.backend.stop();
-      this._clearWatchdog();
-      this.speaking = false;
     }
 
     const message = buildAlertMessage(trigger, this.verbosity);
@@ -95,10 +88,7 @@ export class TTSEngine {
 
   private _speak(message: string, trigger: AlertTrigger): void {
     this.speaking = true;
-    this.alertEngine.updateLastSpoken({
-      count: trigger.count,
-      maxLevel: trigger.isClear ? ThreatLevel.None : trigger.maxLevel,
-    });
+    this.alertEngine.updateLastSpoken({count: trigger.isClear ? 0 : trigger.count});
 
     this._startWatchdog();
     this.onSpeak?.(message);
