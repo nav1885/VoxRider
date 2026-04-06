@@ -56,7 +56,7 @@ describe('Full pipeline integration', () => {
     ble.emitThreats([{speed: 12, distance: 120, level: ThreatLevel.Medium}]);
     expect(ttsBackend.spoken).toHaveLength(0);
 
-    jest.advanceTimersByTime(2001);
+    jest.advanceTimersByTime(1251);
     alertEngine.updateLastSpoken({count: 1});
     expect(ttsBackend.spoken).toHaveLength(1);
     expect(ttsBackend.spoken[0]).toBe('1 vehicle, medium speed');
@@ -67,7 +67,7 @@ describe('Full pipeline integration', () => {
       {speed: 12, distance: 80, level: ThreatLevel.Medium},
       {speed: 22, distance: 120, level: ThreatLevel.High},
     ]);
-    jest.advanceTimersByTime(2001);
+    jest.advanceTimersByTime(1251);
     alertEngine.updateLastSpoken({count: 2});
     expect(ttsBackend.spoken[ttsBackend.spoken.length - 1]).toBe('2 vehicles, high speed');
 
@@ -91,7 +91,7 @@ describe('Full pipeline integration', () => {
     });
 
     isolatedBle.emitThreats([{speed: 20, distance: 50, level: ThreatLevel.High}]);
-    jest.advanceTimersByTime(2001);
+    jest.advanceTimersByTime(1251);
     expect(isolatedBackend.spoken).toHaveLength(0);
   });
 
@@ -99,7 +99,7 @@ describe('Full pipeline integration', () => {
     // count=1 already spoken, same car speeds up — no audio trigger
     alertEngine.updateLastSpoken({count: 1});
     ble.emitThreats([{speed: 25, distance: 60, level: ThreatLevel.High}]);
-    jest.advanceTimersByTime(2001);
+    jest.advanceTimersByTime(1251);
     expect(ttsBackend.spoken).toHaveLength(0);
   });
 
@@ -111,14 +111,14 @@ describe('Full pipeline integration', () => {
     ]);
     expect(ttsBackend.spoken).toHaveLength(0);
 
-    jest.advanceTimersByTime(2001);
+    jest.advanceTimersByTime(1251);
     expect(ttsBackend.spoken).toHaveLength(1);
     expect(ttsBackend.spoken[0]).toBe('2 vehicles, medium speed');
   });
 
   it('snapshot fires after TTS finishes if more vehicles arrived mid-speech', () => {
     ble.emitThreats([{speed: 12, distance: 80, level: ThreatLevel.Medium}]);
-    jest.advanceTimersByTime(2001); // debounce fires → speaking
+    jest.advanceTimersByTime(1251); // debounce fires → speaking
     alertEngine.updateLastSpoken({count: 1});
     expect(ttsBackend.spoken).toHaveLength(1);
 
@@ -130,14 +130,14 @@ describe('Full pipeline integration', () => {
     expect(ttsBackend.spoken).toHaveLength(1);
 
     jest.advanceTimersByTime(1);    // tick for onFinished callback
-    jest.advanceTimersByTime(2001); // debounce from evaluateAfterTTSFinished
+    jest.advanceTimersByTime(1251); // debounce from evaluateAfterTTSFinished
     expect(ttsBackend.spoken).toHaveLength(2);
     expect(ttsBackend.spoken[1]).toBe('2 vehicles, medium speed');
   });
 
   it('TTS is never interrupted — always finishes in full', () => {
     ble.emitThreats([{speed: 12, distance: 120, level: ThreatLevel.Medium}]);
-    jest.advanceTimersByTime(2001);
+    jest.advanceTimersByTime(1251);
 
     // Rapid changes while speaking — none should call stop()
     ble.emitThreats([{speed: 25, distance: 80, level: ThreatLevel.High}]);

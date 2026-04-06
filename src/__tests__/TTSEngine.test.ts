@@ -88,7 +88,7 @@ describe('TTSEngine', () => {
       backend.triggerFinished();
       expect(backend.lastUtterance).toBe(utteranceBefore); // not yet
 
-      jest.advanceTimersByTime(2001); // debounce fires
+      jest.advanceTimersByTime(1251); // debounce fires
       expect(backend.lastUtterance).toBe('2 vehicles, medium speed');
     });
 
@@ -99,7 +99,7 @@ describe('TTSEngine', () => {
 
       const utteranceBefore = backend.lastUtterance;
       backend.triggerFinished();
-      jest.advanceTimersByTime(2001);
+      jest.advanceTimersByTime(1251);
       expect(backend.lastUtterance).toBe(utteranceBefore);
     });
 
@@ -110,7 +110,7 @@ describe('TTSEngine', () => {
 
       const utteranceBefore = backend.lastUtterance;
       backend.triggerFinished();
-      jest.advanceTimersByTime(2001);
+      jest.advanceTimersByTime(1251);
       expect(backend.lastUtterance).toBe(utteranceBefore);
     });
   });

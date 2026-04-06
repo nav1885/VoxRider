@@ -3,7 +3,7 @@ import {buildAlertMessage} from './buildAlertMessage';
 import {AlertTrigger, AlertVerbosity} from './types';
 import {Threat, ConnectionStatus, ThreatLevel} from '../ble/types';
 
-const WATCHDOG_MS = 10000;
+const WATCHDOG_MS = 3000;
 
 export interface ITTSBackend {
   speak(utterance: string, onFinished: () => void): void;

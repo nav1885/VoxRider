@@ -26,8 +26,8 @@ describe('AlertEngine', () => {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  /** Advance past the change debounce (2 s). */
-  const flushDebounce = () => jest.advanceTimersByTime(2001);
+  /** Advance past the change debounce (1.25 s). */
+  const flushDebounce = () => jest.advanceTimersByTime(1251);
 
   /** Advance past the change cap (4 s). */
   const flushCap = () => jest.advanceTimersByTime(4001);

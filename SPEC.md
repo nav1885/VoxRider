@@ -87,7 +87,7 @@ The Garmin Varia RTL515 exposes a BLE GATT service that streams radar data conti
     - Byte 1: distance (`uint8`, meters, max 255m)
     - Byte 2: flags — bits 7–6: threat level (`0`=none, `1`=medium, `2`=high, `3`=unknown)
 - **Split packets:** Payloads exceeding the 20-byte BLE MTU are split. Fragments share a sequence ID (upper nibble of byte 0) and are reassembled by the client.
-- **Update rate:** ~100–300ms when threats present. Continuous idle (1-byte) packets when clear.
+- **Update rate:** ~1 Hz (one notification per second) regardless of threat count. Clear state = 1-byte idle packet; threats present = `1 + 3N` byte packet. Sub-second filler packets exist but carry zero threats and are ignored by the parser. Source: https://forums.garmin.com/developer/connect-iq/f/discussion/240452/bluetooth-profile-for-garmin-varia-rtl515
 - **Device name prefix:** `RTL` (e.g. `RTL64894`)
 
 ### Pairing behaviour
