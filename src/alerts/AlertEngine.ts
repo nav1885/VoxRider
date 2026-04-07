@@ -67,7 +67,7 @@ export class AlertEngine {
       return;
     }
 
-    this._cancelClearDebounce();
+    this._cancelClearDebounce(true);
 
     // ── No count change from lastSpoken ────────────────────────────────────────
     if (count === this.lastSpokenState.count) {
@@ -93,7 +93,9 @@ export class AlertEngine {
 
     if (count === 0) {
       if (this.lastSpokenState.count > 0) {
-        this._startClearDebounce();
+        // TTS has been speaking for seconds — clear is confirmed, no need to re-debounce.
+        this._cancelClearDebounce();
+        this._fireClear();
       }
       return;
     }
@@ -193,7 +195,8 @@ export class AlertEngine {
     }, CLEAR_DEBOUNCE_CAP_MS);
   }
 
-  private _cancelClearDebounce(): void {
+  private _cancelClearDebounce(resetIfPending = false): void {
+    const hadPending = this.clearDebounceTimer !== null;
     if (this.clearDebounceTimer !== null) {
       clearTimeout(this.clearDebounceTimer);
       this.clearDebounceTimer = null;
@@ -201,6 +204,11 @@ export class AlertEngine {
     if (this.clearCapTimer !== null) {
       clearTimeout(this.clearCapTimer);
       this.clearCapTimer = null;
+    }
+    if (resetIfPending && hadPending) {
+      // Road was confirmed empty (clear debounce was running) — reset lastSpoken
+      // so the incoming threat is treated as fresh regardless of count.
+      this.lastSpokenState = {count: 0};
     }
   }
 
