@@ -93,9 +93,7 @@ export class AlertEngine {
 
     if (count === 0) {
       if (this.lastSpokenState.count > 0) {
-        // TTS has been speaking for seconds — clear is confirmed, no need to re-debounce.
-        this._cancelClearDebounce();
-        this._fireClear();
+        this._startClearDebounce();
       }
       return;
     }
