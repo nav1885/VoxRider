@@ -8,16 +8,16 @@ import {AlertTrigger, LastSpokenState} from './types';
  * Absorbs single-packet noise (phantom count flickers) without delaying
  * real car arrivals — a car at 140m takes ~5s to reach 100m at 100km/h.
  */
-const CHANGE_DEBOUNCE_MS = 1250;
+const CHANGE_DEBOUNCE_MS = 750;
 
 /**
  * Hard cap: even if count keeps changing, never wait longer than this.
  * Prevents silence on a genuinely busy road.
  */
-const CHANGE_CAP_MS = 4000;
+const CHANGE_CAP_MS = 3000;
 
-const CLEAR_DEBOUNCE_MS = 3000;
-const CLEAR_DEBOUNCE_CAP_MS = 5000;
+const CLEAR_DEBOUNCE_MS = 1500;
+const CLEAR_DEBOUNCE_CAP_MS = 3000;
 
 export class AlertEngine {
   private lastSpokenState: LastSpokenState = {count: 0};

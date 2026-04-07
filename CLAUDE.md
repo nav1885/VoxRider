@@ -51,7 +51,7 @@ When asked to build and test on Android, always follow this workflow without ask
 ## Alert Logic
 
 - Triggers: **count changes only** (up or down). Level/speed never triggers audio.
-- Debounce: **2s**, cap **4s**
-- Clear debounce: **3s**, cap **5s**
+- Debounce: **750ms**, cap **3s**
+- Clear debounce: **1.5s**, cap **3s**
 - TTS always finishes in full — no interruptions under any circumstance.
 - Level/speed included in the spoken message as the **max** seen during the debounce window.
