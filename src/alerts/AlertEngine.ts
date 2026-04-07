@@ -176,6 +176,7 @@ export class AlertEngine {
   }
 
   private _fire(trigger: AlertTrigger): void {
+    console.log(`[AlertEngine] _fire isClear=${trigger.isClear} count=${trigger.count}`);
     this.onTrigger(trigger);
   }
 

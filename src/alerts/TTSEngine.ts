@@ -4,7 +4,7 @@ import {AlertTrigger, AlertVerbosity} from './types';
 import {Threat, ConnectionStatus, ThreatLevel} from '../ble/types';
 import {useRadarStore} from '../ble/radarStore';
 
-const WATCHDOG_MS = 3000;
+const WATCHDOG_MS = 6000;
 
 export interface ITTSBackend {
   speak(utterance: string, onFinished: () => void): void;
@@ -54,12 +54,13 @@ export class TTSEngine {
 
   /** Fire an alert. Always dropped if TTS is speaking — snapshot-on-completion re-evaluates. */
   handleTrigger(trigger: AlertTrigger): void {
+    const label = trigger.isClear ? 'clear' : `count=${trigger.count}`;
     if (this.speaking) {
-      // TTS always finishes in full. Current state re-evaluated on completion.
-      this._log(`dropped (speaking) trigger=${trigger.isClear ? 'clear' : `count=${trigger.count}`}`);
+      console.log(`[TTSEngine] handleTrigger DROPPED speaking=true trigger=${label}`);
+      this._log(`dropped (speaking) trigger=${label}`);
       return;
     }
-
+    console.log(`[TTSEngine] handleTrigger SPEAK trigger=${label}`);
     const message = buildAlertMessage(trigger, this.verbosity);
     this._speak(message, trigger);
   }
@@ -104,10 +105,12 @@ export class TTSEngine {
 
   private _onFinished(): void {
     if (!this.speaking) {
+      console.log('[TTSEngine] _onFinished called but already reset — ignoring');
       return; // Already reset (watchdog or focus loss fired first)
     }
     this._clearWatchdog();
     this.speaking = false;
+    console.log('[TTSEngine] _onFinished speaking=false');
     this._log('finished');
 
     // Snapshot-on-completion: re-evaluate current state

@@ -53,5 +53,6 @@ When asked to build and test on Android, always follow this workflow without ask
 - Triggers: **count changes only** (up or down). Level/speed never triggers audio.
 - Debounce: **750ms**, cap **3s**
 - Clear debounce: **1.5s**, cap **3s**
+- TTS watchdog: **6s** (utterances run up to ~3.5s at 0.65 speech rate)
 - TTS always finishes in full — no interruptions under any circumstance.
 - Level/speed included in the spoken message as the **max** seen during the debounce window.
