@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {StatusBar, useColorScheme, NativeModules, Platform} from 'react-native';
+import {StatusBar, useColorScheme, NativeModules, Platform, PermissionsAndroid} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {NavigationContainer} from '@react-navigation/native';
 import {createStackNavigator, CardStyleInterpolators} from '@react-navigation/stack';
@@ -68,8 +68,18 @@ export default function App(): React.JSX.Element {
       await ttsBackend.initialize();
       await loadSettings();
       const {pairedDevices, voiceId} = useSettingsStore.getState();
-      if (Platform.OS === 'android' && voiceId) {
-        NativeModules.VoxTTS?.setVoice(voiceId);
+      if (Platform.OS === 'android') {
+        if (voiceId) {
+          NativeModules.VoxTTS?.setVoice(voiceId);
+        }
+        // Android 13+ requires POST_NOTIFICATIONS for the foreground service notification
+        if (Platform.Version >= 33) {
+          await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+        }
+        // Ensure the foreground service + wake lock are running for background BLE/TTS
+        NativeModules.VoxTTS?.startRadarService();
+        // Prompt to exempt from battery optimization — Samsung OEM killers suspend JS otherwise
+        NativeModules.VoxTTS?.requestIgnoreBatteryOptimizations();
       }
       if (pairedDevices.length > 0) {
         // Auto-connect to last paired device

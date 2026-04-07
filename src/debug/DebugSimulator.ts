@@ -67,11 +67,11 @@ const TRAFFIC_PROFILES: Record<TrafficMode, TrafficProfile> = {
 
 // Vehicle templates — realistic cycling scenarios
 const VEHICLE_TEMPLATES = [
-  {speed: 8,  level: ThreatLevel.Medium}, // ~29 km/h — slow car
-  {speed: 12, level: ThreatLevel.Medium}, // ~43 km/h — moderate
-  {speed: 16, level: ThreatLevel.High},   // ~58 km/h — fast
-  {speed: 22, level: ThreatLevel.High},   // ~79 km/h — very fast
-  {speed: 28, level: ThreatLevel.High},   // ~101 km/h — speeding
+  {speed: 9,  level: ThreatLevel.Medium}, // ~20 mph
+  {speed: 13, level: ThreatLevel.Medium}, // ~30 mph
+  {speed: 18, level: ThreatLevel.High},   // ~40 mph
+  {speed: 27, level: ThreatLevel.High},   // ~60 mph
+  {speed: 45, level: ThreatLevel.High},   // ~100 mph
 ];
 
 interface SimVehicle {

@@ -1,10 +1,14 @@
 package com.voxrider
 
+import android.content.Intent
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
@@ -181,6 +185,36 @@ class VoxTTSModule(private val reactContext: ReactApplicationContext) :
             promise.resolve(result)
         } catch (e: Exception) {
             promise.reject("GET_VOICES_ERROR", e.message, e)
+        }
+    }
+
+    /**
+     * Start (or re-start) RadarService from JS — called after BLE permissions are confirmed.
+     * Safe to call multiple times; START_STICKY service ignores duplicate starts.
+     */
+    @ReactMethod
+    fun startRadarService() {
+        val context = reactContext.applicationContext
+        val intent = Intent(context, RadarService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+        } else {
+            context.startService(intent)
+        }
+    }
+
+    /**
+     * Open the system battery optimization exemption dialog if not already exempt.
+     * Needed on Samsung (One UI) and other OEMs that aggressively kill background services.
+     */
+    @ReactMethod
+    fun requestIgnoreBatteryOptimizations() {
+        val pm = reactContext.getSystemService(android.content.Context.POWER_SERVICE) as PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(reactContext.packageName)) {
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:${reactContext.packageName}")
+            }
+            reactContext.currentActivity?.startActivity(intent)
         }
     }
 
