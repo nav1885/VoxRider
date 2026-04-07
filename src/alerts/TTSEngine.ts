@@ -2,6 +2,7 @@ import {AlertEngine} from './AlertEngine';
 import {buildAlertMessage} from './buildAlertMessage';
 import {AlertTrigger, AlertVerbosity} from './types';
 import {Threat, ConnectionStatus, ThreatLevel} from '../ble/types';
+import {useRadarStore} from '../ble/radarStore';
 
 const WATCHDOG_MS = 3000;
 
@@ -55,6 +56,7 @@ export class TTSEngine {
   handleTrigger(trigger: AlertTrigger): void {
     if (this.speaking) {
       // TTS always finishes in full. Current state re-evaluated on completion.
+      this._log(`dropped (speaking) trigger=${trigger.isClear ? 'clear' : `count=${trigger.count}`}`);
       return;
     }
 
@@ -82,6 +84,7 @@ export class TTSEngine {
   /** Called when Android audio focus is lost — treat as implicit speech end */
   onAudioFocusLoss(): void {
     if (this.speaking) {
+      this._log('audio focus lost — forcing finish');
       this._onFinished();
     }
   }
@@ -89,6 +92,7 @@ export class TTSEngine {
   private _speak(message: string, trigger: AlertTrigger): void {
     this.speaking = true;
     this.alertEngine.updateLastSpoken({count: trigger.isClear ? 0 : trigger.count});
+    this._log(`speak: "${message}"`);
 
     this._startWatchdog();
     this.onSpeak?.(message);
@@ -104,6 +108,7 @@ export class TTSEngine {
     }
     this._clearWatchdog();
     this.speaking = false;
+    this._log('finished');
 
     // Snapshot-on-completion: re-evaluate current state
     this.alertEngine.evaluateAfterTTSFinished(
@@ -116,6 +121,7 @@ export class TTSEngine {
     this._clearWatchdog();
     this.watchdog = setTimeout(() => {
       // onFinished never fired — force reset
+      this._log('watchdog fired — forcing reset');
       this.speaking = false;
       this.watchdog = null;
       this.alertEngine.evaluateAfterTTSFinished(
@@ -130,5 +136,16 @@ export class TTSEngine {
       clearTimeout(this.watchdog);
       this.watchdog = null;
     }
+  }
+
+  private _log(event: string): void {
+    const {debugTTSLog, setDebugTTSLog} = useRadarStore.getState();
+    const ts = new Date().toISOString().slice(11, 23); // HH:mm:ss.mmm
+    const lines = debugTTSLog ? debugTTSLog.split('\n') : [];
+    lines.push(`[${ts}] ${event}`);
+    if (lines.length > 30) {
+      lines.splice(0, lines.length - 30);
+    }
+    setDebugTTSLog(lines.join('\n'));
   }
 }
