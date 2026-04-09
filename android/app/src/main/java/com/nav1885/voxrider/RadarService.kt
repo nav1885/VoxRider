@@ -1,4 +1,4 @@
-package com.voxrider
+package com.nav1885.voxrider
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -46,7 +46,7 @@ class RadarService : Service() {
         val pm = getSystemService(POWER_SERVICE) as PowerManager
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG).apply {
             setReferenceCounted(false)
-            acquire()
+            acquire(10L * 60 * 60 * 1000) // 10 hours — covers a full ride; auto-releases if onDestroy never called
         }
     }
 
@@ -73,8 +73,8 @@ class RadarService : Service() {
     override fun onDestroy() {
         wakeLock?.release()
         wakeLock = null
-        super.onDestroy()
         stopForeground(STOP_FOREGROUND_REMOVE)
+        super.onDestroy()
     }
 
     private fun createNotificationChannel() {

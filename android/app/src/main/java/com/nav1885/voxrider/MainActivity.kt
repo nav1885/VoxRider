@@ -1,4 +1,4 @@
-package com.voxrider
+package com.nav1885.voxrider
 
 import android.Manifest
 import android.content.Intent

@@ -16,13 +16,19 @@ When asked to build and test on Android, always follow this workflow without ask
      --assets-dest android/app/src/main/res
    ```
 
-2. **Build release APK** (default — not debug):
+2. **Build release AAB** for Play Store (default):
+   ```bash
+   cd android && ./gradlew bundleRelease --no-daemon
+   ```
+   AAB output: `android/app/build/outputs/bundle/release/app-release.aab`
+
+   For sideload / device testing, build an APK instead:
    ```bash
    cd android && ./gradlew assembleRelease --no-daemon
    ```
    APK output: `android/app/build/outputs/apk/release/app-release.apk`
 
-   Use `assembleDebug` only if explicitly asked, or if the keystore is unavailable.
+   Use `assembleDebug` / `bundleDebug` only if explicitly asked, or if the keystore is unavailable.
 
 3. **Find the device transport ID**:
    ```bash
@@ -30,13 +36,13 @@ When asked to build and test on Android, always follow this workflow without ask
    ```
    Pick the transport_id for the connected device (there may be two entries for the same phone — use either).
 
-4. **Install**:
+4. **Install** (APK only — AAB goes to Play Console, not direct install):
    ```bash
    adb -t <transport_id> install -r android/app/build/outputs/apk/release/app-release.apk
    ```
 
 ### Rules
-- Never start or kill Metro — JS is always bundled into the APK.
+- Never start or kill Metro — JS is always bundled into the APK/AAB.
 - Always build release unless told otherwise.
 - Keystore lives at `android/app/voxrider-release.keystore` with properties in `android/keystore.properties`.
 - Transport ID changes on every ADB daemon restart — always run `adb devices -l` first.

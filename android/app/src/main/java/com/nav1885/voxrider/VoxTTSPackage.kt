@@ -1,4 +1,4 @@
-package com.voxrider
+package com.nav1885.voxrider
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule

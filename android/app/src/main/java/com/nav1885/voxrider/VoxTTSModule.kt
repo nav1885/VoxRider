@@ -1,6 +1,8 @@
-package com.voxrider
+package com.nav1885.voxrider
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
@@ -195,26 +197,19 @@ class VoxTTSModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun startRadarService() {
         val context = reactContext.applicationContext
+        // Android 14+: starting connectedDevice FGS requires BLUETOOTH_CONNECT to be granted.
+        // On fresh install permissions aren't granted yet — skip silently.
+        // MainActivity.onStart() will retry once the user returns after granting permissions.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val granted = context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==
+                PackageManager.PERMISSION_GRANTED
+            if (!granted) return
+        }
         val intent = Intent(context, RadarService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.startForegroundService(intent)
         } else {
             context.startService(intent)
-        }
-    }
-
-    /**
-     * Open the system battery optimization exemption dialog if not already exempt.
-     * Needed on Samsung (One UI) and other OEMs that aggressively kill background services.
-     */
-    @ReactMethod
-    fun requestIgnoreBatteryOptimizations() {
-        val pm = reactContext.getSystemService(android.content.Context.POWER_SERVICE) as PowerManager
-        if (!pm.isIgnoringBatteryOptimizations(reactContext.packageName)) {
-            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = Uri.parse("package:${reactContext.packageName}")
-            }
-            reactContext.currentActivity?.startActivity(intent)
         }
     }
 
