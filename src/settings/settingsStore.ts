@@ -36,6 +36,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setDebugMode: on => {
     set({debugMode: on});
+    get()._persist();
   },
   setTrafficMode: mode => {
     set({trafficMode: mode});
@@ -83,6 +84,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           units: saved.units ?? 'imperial',
           pairedDevices: saved.pairedDevices ?? [],
           voiceId: saved.voiceId ?? null,
+          debugMode: saved.debugMode ?? false,
         });
       }
     } catch {}
@@ -90,10 +92,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   _persist: async () => {
     try {
-      const {verbosity, units, pairedDevices, voiceId} = get();
+      const {verbosity, units, pairedDevices, voiceId, debugMode} = get();
       await AsyncStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({verbosity, units, pairedDevices, voiceId}),
+        JSON.stringify({verbosity, units, pairedDevices, voiceId, debugMode}),
       );
     } catch {}
   },

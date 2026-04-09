@@ -49,7 +49,6 @@ export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): Re
   const setUnits = useSettingsStore(s => s.setUnits);
   const removePairedDevice = useSettingsStore(s => s.removePairedDevice);
   const debugMode = useSettingsStore(s => s.debugMode);
-  const setDebugMode = useSettingsStore(s => s.setDebugMode);
   const trafficMode = useSettingsStore(s => s.trafficMode);
   const setTrafficMode = useSettingsStore(s => s.setTrafficMode);
   const voiceId = useSettingsStore(s => s.voiceId);
@@ -202,26 +201,6 @@ export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): Re
           </TouchableOpacity>
         )}
 
-        {/* Debug Mode */}
-        <Text style={[labelStyle, styles.sectionSpacing]}>DEBUG</Text>
-        <View style={styles.segmentRow} testID="debug-mode-control">
-          {(['off', 'on'] as const).map(val => (
-            <TouchableOpacity
-              key={val}
-              testID={`debug-${val}`}
-              accessibilityState={{selected: val === 'on' ? debugMode : !debugMode}}
-              style={[styles.segment, (val === 'on' ? debugMode : !debugMode) && styles.segmentActive]}
-              onPress={() => setDebugMode(val === 'on')}>
-              <Text
-                style={[
-                  styles.segmentText,
-                  (val === 'on' ? debugMode : !debugMode) && styles.segmentTextActive,
-                ]}>
-                {val === 'on' ? 'On' : 'Off'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
         {/* Traffic Mode — only shown when debug is on */}
         {debugMode && (
           <>

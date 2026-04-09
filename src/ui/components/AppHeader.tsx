@@ -7,9 +7,13 @@
  */
 
 import React, {useEffect, useRef} from 'react';
-import {Animated, View, Text, StyleSheet, useColorScheme} from 'react-native';
+import {Animated, View, Text, TouchableOpacity, StyleSheet, useColorScheme, Platform, ToastAndroid} from 'react-native';
 import Svg, {Circle, Line, Path} from 'react-native-svg';
 import {ConnectionStatus} from '../../ble/types';
+import {useSettingsStore} from '../../settings/settingsStore';
+
+const DEBUG_TAP_COUNT = 7;
+const DEBUG_TAP_WINDOW_MS = 4000;
 
 // ─── Minimal side-view bicycle ────────────────────────────────────────────────
 
@@ -153,6 +157,27 @@ interface Props {
 
 export function AppHeader({connectionStatus, deviceName, batteryLevel}: Props): React.JSX.Element {
   const isDark = useColorScheme() === 'dark';
+  const debugMode = useSettingsStore(s => s.debugMode);
+  const setDebugMode = useSettingsStore(s => s.setDebugMode);
+  const tapCount = useRef(0);
+  const lastTapTime = useRef(0);
+
+  const handleWordmarkPress = () => {
+    if (debugMode) { return; }
+    const now = Date.now();
+    if (now - lastTapTime.current > DEBUG_TAP_WINDOW_MS) {
+      tapCount.current = 0;
+    }
+    lastTapTime.current = now;
+    tapCount.current += 1;
+    if (tapCount.current >= DEBUG_TAP_COUNT) {
+      tapCount.current = 0;
+      setDebugMode(true);
+      if (Platform.OS === 'android') {
+        ToastAndroid.show('Debug mode enabled', ToastAndroid.SHORT);
+      }
+    }
+  };
 
   const deviceLabel =
     connectionStatus === ConnectionStatus.Connected && deviceName
@@ -181,11 +206,14 @@ export function AppHeader({connectionStatus, deviceName, batteryLevel}: Props): 
         </Text>
       </View>
 
-      {/* ── Center: bike + wordmark ── */}
-      <View style={hSt.center}>
+      {/* ── Center: bike + wordmark (7-tap Easter egg unlocks debug mode) ── */}
+      <TouchableOpacity style={hSt.center} onPress={handleWordmarkPress} activeOpacity={1}>
         <BikeIcon color={iconColor} />
         <Text style={[hSt.wordmark, {color: iconColor}]}>VOXRIDER</Text>
-      </View>
+        {debugMode && (
+          <Text style={[hSt.devBadge, {color: iconColor}]}>·DEV·</Text>
+        )}
+      </TouchableOpacity>
 
       {/* ── Right: battery ── */}
       <View style={[hSt.side, hSt.sideRight]}>
@@ -246,5 +274,11 @@ const hSt = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 3,
+  },
+  devBadge: {
+    fontSize: 8,
+    fontWeight: '700',
+    letterSpacing: 2,
+    opacity: 0.4,
   },
 });
