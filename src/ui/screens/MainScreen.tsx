@@ -11,6 +11,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import {useRadarStore} from '../../ble/radarStore';
 import {useSettingsStore} from '../../settings/settingsStore';
+import {useDebugStore} from '../../debug/debugStore';
 import {ConnectionStatus, ThreatLevel} from '../../ble/types';
 import {getMaxThreatLevel} from '../../ble/parseRadarPacket';
 import {RoadView} from '../components/RoadView';
@@ -36,8 +37,9 @@ export function MainScreen({onSwipeLeft}: Props): React.JSX.Element {
 
   const debugMode = useSettingsStore(s => s.debugMode);
   const trafficMode = useSettingsStore(s => s.trafficMode);
-  const debugLastAnnouncement = useRadarStore(s => s.debugLastAnnouncement);
-  const debugTTSLog = useRadarStore(s => s.debugTTSLog);
+  const lastAnnouncement = useDebugStore(s => s.lastAnnouncement);
+  const alertLog = useDebugStore(s => s.alertLog);
+  const ttsLog = useDebugStore(s => s.ttsLog);
   const simulatorRef = useRef(new DebugSimulator());
   const [simRunning, setSimRunning] = useState(false);
 
@@ -166,14 +168,25 @@ export function MainScreen({onSwipeLeft}: Props): React.JSX.Element {
           {/* ── Debug section ── */}
           {debugMode && (
             <View style={styles.debugSection}>
-              {debugLastAnnouncement !== '' && (
+              {lastAnnouncement !== '' && (
                 <Text style={styles.debugAnnounced}>
-                  announced: "{debugLastAnnouncement}"
+                  last: "{lastAnnouncement}"
                 </Text>
               )}
-              {debugTTSLog !== '' && (
-                <Text style={styles.debugTTS}>{debugTTSLog}</Text>
-              )}
+
+              {/* ── Dual log: ALG left, TTS right ── */}
+              <View style={styles.logRow}>
+                <View style={styles.logCol}>
+                  <Text style={styles.logHeader}>ALG</Text>
+                  <Text style={styles.logText}>{alertLog}</Text>
+                </View>
+                <View style={styles.logDivider} />
+                <View style={styles.logCol}>
+                  <Text style={styles.logHeader}>TTS</Text>
+                  <Text style={styles.logText}>{ttsLog}</Text>
+                </View>
+              </View>
+
               <TouchableOpacity
                 testID="debug-simulate-button"
                 style={[styles.simButton, {backgroundColor: simRunning ? '#DC2626' : '#16A34A'}]}
@@ -249,7 +262,11 @@ const styles = StyleSheet.create({
   // ── Debug ──
   debugSection: {marginTop: 10, gap: 6, paddingHorizontal: 20},
   debugAnnounced: {color: '#6B7280', fontSize: 12, textAlign: 'center'},
-  debugTTS: {color: '#9CA3AF', fontSize: 10, textAlign: 'center'},
+  logRow: {flexDirection: 'row', gap: 4},
+  logCol: {flex: 1, minHeight: 80},
+  logDivider: {width: 1, backgroundColor: '#374151'},
+  logHeader: {color: '#6B7280', fontSize: 9, fontWeight: '700', marginBottom: 2},
+  logText: {color: '#9CA3AF', fontSize: 9, fontFamily: 'monospace'},
   simButton: {borderRadius: 10, paddingVertical: 14, alignItems: 'center'},
   simButtonText: {color: '#FFFFFF', fontSize: 16, fontWeight: '600'},
 });

@@ -17,6 +17,7 @@ import {NativeTTSBackend} from './src/alerts/NativeTTSBackend';
 import {AlertEngine} from './src/alerts/AlertEngine';
 import {TTSEngine} from './src/alerts/TTSEngine';
 import {ConnectionAlertEngine} from './src/alerts/ConnectionAlertEngine';
+import {useDebugStore} from './src/debug/debugStore';
 
 export type RootStackParamList = {
   PairingStep1: undefined;
@@ -35,12 +36,15 @@ const ttsBackend = new NativeTTSBackend();
 const connectionAlertEngine = new ConnectionAlertEngine(msg =>
   ttsBackend.speak(msg, () => {}),
 );
-const alertEngine = new AlertEngine(() => {});
+const alertEngine = new AlertEngine(
+  () => {},
+  line => useDebugStore.getState().appendAlertLog(line),
+);
 const ttsEngine = new TTSEngine(
   ttsBackend,
   alertEngine,
   useSettingsStore.getState().verbosity,
-  msg => useRadarStore.getState().setDebugLastAnnouncement(msg),
+  msg => useDebugStore.getState().setLastAnnouncement(msg),
 );
 
 // Keep verbosity in sync when user changes it in Settings
@@ -50,8 +54,15 @@ useSettingsStore.subscribe(state => {
 
 // Drive the alert pipeline from every BLE state update
 useRadarStore.subscribe(state => {
-  ttsEngine.updateState(state.threats, state.connectionStatus);
-  alertEngine.evaluate(state.threats, state.connectionStatus);
+  // In debug mode the simulator owns connectionStatus — the BLE reconnect loop
+  // fires every 3s and clobbers it with Connecting/Disconnected, which would
+  // silently block alertEngine.evaluate(). Always treat as Connected in debug.
+  const effectiveStatus = useSettingsStore.getState().debugMode
+    ? ConnectionStatus.Connected
+    : state.connectionStatus;
+
+  ttsEngine.updateState(state.threats, effectiveStatus);
+  alertEngine.evaluate(state.threats, effectiveStatus);
   if (!useSettingsStore.getState().debugMode) {
     connectionAlertEngine.onStatusChange(state.connectionStatus);
   }

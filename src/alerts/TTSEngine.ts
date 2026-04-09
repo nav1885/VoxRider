@@ -2,7 +2,7 @@ import {AlertEngine} from './AlertEngine';
 import {buildAlertMessage} from './buildAlertMessage';
 import {AlertTrigger, AlertVerbosity} from './types';
 import {Threat, ConnectionStatus, ThreatLevel} from '../ble/types';
-import {useRadarStore} from '../ble/radarStore';
+import {useDebugStore} from '../debug/debugStore';
 
 const WATCHDOG_MS = 6000;
 
@@ -56,12 +56,11 @@ export class TTSEngine {
   handleTrigger(trigger: AlertTrigger): void {
     const label = trigger.isClear ? 'clear' : `count=${trigger.count}`;
     if (this.speaking) {
-      console.log(`[TTSEngine] handleTrigger DROPPED speaking=true trigger=${label}`);
-      this._log(`dropped (speaking) trigger=${label}`);
+      this._log(`DROP (busy): ${label}`);
       return;
     }
-    console.log(`[TTSEngine] handleTrigger SPEAK trigger=${label}`);
     const message = buildAlertMessage(trigger, this.verbosity);
+    this._log(`SPOKE: "${message}"`);
     this._speak(message, trigger);
   }
 
@@ -85,7 +84,7 @@ export class TTSEngine {
   /** Called when Android audio focus is lost — treat as implicit speech end */
   onAudioFocusLoss(): void {
     if (this.speaking) {
-      this._log('audio focus lost — forcing finish');
+      this._log('audio focus lost → forcing finish');
       this._onFinished();
     }
   }
@@ -93,7 +92,6 @@ export class TTSEngine {
   private _speak(message: string, trigger: AlertTrigger): void {
     this.speaking = true;
     this.alertEngine.updateLastSpoken({count: trigger.isClear ? 0 : trigger.count});
-    this._log(`speak: "${message}"`);
 
     this._startWatchdog();
     this.onSpeak?.(message);
@@ -105,13 +103,12 @@ export class TTSEngine {
 
   private _onFinished(): void {
     if (!this.speaking) {
-      console.log('[TTSEngine] _onFinished called but already reset — ignoring');
+      this._log('onFinished: already reset, ignored');
       return; // Already reset (watchdog or focus loss fired first)
     }
     this._clearWatchdog();
     this.speaking = false;
-    console.log('[TTSEngine] _onFinished speaking=false');
-    this._log('finished');
+    this._log('done → evaluating');
 
     // Snapshot-on-completion: re-evaluate current state
     this.alertEngine.evaluateAfterTTSFinished(
@@ -123,14 +120,13 @@ export class TTSEngine {
   private _startWatchdog(): void {
     this._clearWatchdog();
     this.watchdog = setTimeout(() => {
-      // onFinished never fired — force reset
-      this._log('watchdog fired — forcing reset');
+      // onFinished never fired — force reset speaking state only.
+      // Don't call evaluateAfterTTSFinished here: that could immediately start
+      // another utterance on the same broken backend. The normal 1Hz evaluate()
+      // loop will re-announce on the next BLE packet.
+      this._log('WATCHDOG fired — speaking reset');
       this.speaking = false;
       this.watchdog = null;
-      this.alertEngine.evaluateAfterTTSFinished(
-        this.currentThreats,
-        this.currentConnectionStatus,
-      );
     }, WATCHDOG_MS);
   }
 
@@ -141,14 +137,7 @@ export class TTSEngine {
     }
   }
 
-  private _log(event: string): void {
-    const {debugTTSLog, setDebugTTSLog} = useRadarStore.getState();
-    const ts = new Date().toISOString().slice(11, 23); // HH:mm:ss.mmm
-    const lines = debugTTSLog ? debugTTSLog.split('\n') : [];
-    lines.push(`[${ts}] ${event}`);
-    if (lines.length > 30) {
-      lines.splice(0, lines.length - 30);
-    }
-    setDebugTTSLog(lines.join('\n'));
+  private _log(line: string): void {
+    useDebugStore.getState().appendTTSLog(line);
   }
 }

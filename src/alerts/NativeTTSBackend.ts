@@ -1,7 +1,7 @@
 import Tts from 'react-native-tts';
 import {NativeModules, NativeEventEmitter, Platform} from 'react-native';
 import {ITTSBackend} from './TTSEngine';
-import {useRadarStore} from '../ble/radarStore';
+import {useDebugStore} from '../debug/debugStore';
 
 const {VoxTTS} = NativeModules;
 
@@ -28,7 +28,7 @@ export class NativeTTSBackend implements ITTSBackend {
     if (Platform.OS === 'android' && VoxTTS) {
       const emitter = new NativeEventEmitter(VoxTTS);
       this.eventSubscription = emitter.addListener('VoxTTSEvent', (msg: string) => {
-        useRadarStore.getState().setDebugTTSLog(msg);
+        useDebugStore.getState().appendTTSLog(`nat: ${msg}`);
         // onDone = utterance finished naturally → snapshot-on-completion
         if (msg.startsWith('onDone')) {
           const cb = this.pendingOnFinished;

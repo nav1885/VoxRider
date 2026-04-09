@@ -2,6 +2,13 @@ import {Threat, ThreatLevel} from '../ble/types';
 import {getMaxThreatLevel} from '../ble/parseRadarPacket';
 import {AlertTrigger, LastSpokenState} from './types';
 
+const LEVEL_LABEL: Record<ThreatLevel, string> = {
+  [ThreatLevel.None]:    'none',
+  [ThreatLevel.Medium]:  'med',
+  [ThreatLevel.High]:    'high',
+  [ThreatLevel.Unknown]: 'unk',
+};
+
 /**
  * How long to wait after a count change before announcing.
  * At 1Hz from the Varia, 2s = 2 stable consecutive packets required.
@@ -33,13 +40,22 @@ export class AlertEngine {
   private clearCapTimer: ReturnType<typeof setTimeout> | null = null;
 
   private onTrigger: (trigger: AlertTrigger) => void;
+  private logFn: ((line: string) => void) | null;
 
-  constructor(onTrigger: (trigger: AlertTrigger) => void) {
+  constructor(
+    onTrigger: (trigger: AlertTrigger) => void,
+    logFn?: (line: string) => void,
+  ) {
     this.onTrigger = onTrigger;
+    this.logFn = logFn ?? null;
   }
 
   setOnTrigger(cb: (trigger: AlertTrigger) => void): void {
     this.onTrigger = cb;
+  }
+
+  private _log(line: string): void {
+    this.logFn?.(line);
   }
 
   /**
@@ -72,10 +88,12 @@ export class AlertEngine {
     // ── No count change from lastSpoken ────────────────────────────────────────
     if (count === this.lastSpokenState.count) {
       this._cancelPendingChange();
+      this._log(`same(${count}), skip`);
       return;
     }
 
     // ── Count changed — debounce ───────────────────────────────────────────────
+    this._log(`${this.lastSpokenState.count}→${count} ${LEVEL_LABEL[maxLevel]}, debounce`);
     this._schedulePendingChange(count, maxLevel);
   }
 
@@ -93,12 +111,14 @@ export class AlertEngine {
 
     if (count === 0) {
       if (this.lastSpokenState.count > 0) {
+        this._log('post-TTS: count=0, restart clear debounce');
         this._startClearDebounce();
       }
       return;
     }
 
     if (count !== this.lastSpokenState.count) {
+      this._log(`post-TTS: ${this.lastSpokenState.count}→${count} ${LEVEL_LABEL[maxLevel]}, debounce`);
       this._schedulePendingChange(count, maxLevel);
     }
   }
@@ -156,9 +176,11 @@ export class AlertEngine {
 
     // Count stabilised back to lastSpoken during debounce — nothing changed
     if (count === this.lastSpokenState.count) {
+      this._log(`debounce resolved: count=${count} same as lastSpoken, skip`);
       return;
     }
 
+    this._log(`FIRE count=${count} ${LEVEL_LABEL[maxLevel]}`);
     this._fire({count, maxLevel, isClear: false});
   }
 
@@ -184,6 +206,7 @@ export class AlertEngine {
     if (this.clearDebounceTimer !== null) {
       return; // Already pending
     }
+    this._log('clear debounce started');
     this.clearDebounceTimer = setTimeout(() => {
       this._cancelClearDebounce();
       this._fireClear();
@@ -212,6 +235,7 @@ export class AlertEngine {
   }
 
   private _fireClear(): void {
+    this._log('FIRE clear');
     this._fire({count: 0, maxLevel: ThreatLevel.None, isClear: true});
   }
 }
