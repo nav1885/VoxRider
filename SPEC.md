@@ -152,7 +152,7 @@ Fenix 8     (ANT+) ←→ Varia RTL515   [unaffected, separate radio]
 | Android background | Foreground Service with persistent notification |
 | iOS background | Background BLE mode entitlement |
 | Navigation | React Navigation (stack navigator) |
-| State management | React Context / Zustand (TBD during implementation) |
+| State management | Zustand — three stores: `radarStore` (BLE state), `settingsStore` (persisted settings), `debugStore` (diagnostic logs, isolated to prevent spurious BLE callbacks) |
 | Storage | AsyncStorage (settings, paired devices) |
 
 ---
@@ -274,11 +274,13 @@ Alerts fire on meaningful state changes only:
 
 | Trigger | Timing | Notes |
 |---|---|---|
-| Vehicle count increases | 1.5s debounce, 4s cap | New car(s) appear |
-| Vehicle count decreases (not to zero) | 1.5s debounce, 4s cap | Car passes, others remain — rider needs updated count |
-| Max threat level changes | 1.5s debounce, 4s cap | Up or down |
-| Escalation: medium → high | Immediate — no debounce | Interrupts current TTS |
-| All clear (count → 0) | 3s debounce, 5s cap | False-clear protection |
+| Vehicle count increases | 750ms debounce, 3s cap | New car(s) appear |
+| Vehicle count decreases (not to zero) | 750ms debounce, 3s cap | Car passes, others remain — rider needs updated count |
+| Max threat level changes | 750ms debounce, 3s cap | Up or down |
+| Escalation: medium → high | No debounce | Fires on next snapshot-on-completion evaluation — TTS finishes first |
+| All clear (count → 0) | 1.5s debounce, 3s cap | False-clear protection |
+
+TTS always plays to completion — no interruptions under any circumstance. Escalation fires without debounce but waits for any current utterance to end naturally.
 
 Rapid changes within the debounce window are batched — only the final stable state is announced. The cap ensures the rider is never silent for more than 4s (or 5s for clear) on a busy road.
 
@@ -308,8 +310,9 @@ Clear announced as *"Clear"* across all verbosity levels — only spoken after a
 | Units | Imperial / Metric | Imperial | Both |
 | Announcer voice | System Default / Echo (US) / Scout (UK) / Nova (AU) | System Default | Android only |
 | Paired devices | List, remove, add | — | Both |
-| Debug mode | On / Off | Off | Both |
 | Report a Bug | Opens pre-filled GitHub issue in browser | — | Both |
+
+**Debug mode** is not a visible settings control. It is unlocked via a hidden Easter egg: tap the VOXRIDER wordmark in the app header 7 times within 4 seconds. Once unlocked a `·DEV·` badge appears and the simulator + diagnostic log panel become available on the main screen. State persists across restarts. See REQ-DEV-001.
 
 **Paired Devices:**
 - Lists all paired Varia devices by friendly name + raw ID

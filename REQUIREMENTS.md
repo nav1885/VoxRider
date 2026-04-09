@@ -181,10 +181,10 @@ Alerts fire only when something materially changes that the rider needs to know.
   1. **Vehicle count changes** — count increases (new car appears) OR count decreases (car passes, others remain). Both are announced so the rider always knows the current count.
   2. **Max threat level changes** — any level change (up or down) is announced as a debounced update
   3. **Max threat level escalates (medium → high)** — fires immediately, no debounce. Interrupts current TTS. Safety always wins.
-  4. **All clear** — all vehicles drop to zero, debounced 3 seconds. **Cap: 5 seconds** — forces clear if threats haven't reappeared within 5 seconds.
+  4. **All clear** — all vehicles drop to zero, debounced 1.5 seconds. **Cap: 3 seconds** — forces clear if threats haven't reappeared within 3 seconds.
 - **Not a trigger:** same count + same level repeating, distance changes alone
-- **Debounce:** 1.5 seconds. Rapid changes (busy road) are batched — only the final stable state is announced. **Cap: 4 seconds** — on continuously busy roads the cap forces an announcement so the rider is never silent for more than 4 seconds.
-- Escalation (medium → high) **immediately interrupts** any currently speaking alert — no debounce, no throttle
+- **Debounce:** 750 ms. Rapid changes (busy road) are batched — only the final stable state is announced. **Cap: 3 seconds** — on continuously busy roads the cap forces an announcement so the rider is never silent for more than 3 seconds.
+- TTS always plays to completion — no interruptions under any circumstance. Escalation (medium → high) fires with no debounce, but waits for current utterance to finish (snapshot-on-completion re-evaluates immediately after).
 
 ### REQ-AUD-003: Snapshot-on-Completion
 While TTS is speaking, incoming BLE updates are not queued. When TTS finishes, the app compares current live state against **last spoken state** and fires a new alert only if something materially changed:
@@ -198,9 +198,9 @@ If state is unchanged, no follow-up alert fires. This prevents back-to-back iden
 - Exception: medium → high escalation interrupts immediately regardless (REQ-AUD-002)
 
 **Watchdog timer (reliability requirement):**
-`onFinished` from `react-native-tts` is not guaranteed to fire on all Android versions and conditions. A 10-second watchdog timer must run alongside every TTS utterance:
-- If `onFinished` fires within 10 seconds → cancel timer, proceed normally
-- If timer fires first → force-reset TTS speaking state, re-evaluate current threat state
+`onFinished` from `react-native-tts` is not guaranteed to fire on all Android versions and conditions. A 6-second watchdog timer must run alongside every TTS utterance:
+- If `onFinished` fires within 6 seconds → cancel timer, proceed normally
+- If timer fires first → force-reset TTS speaking state only. The normal 1 Hz evaluate loop re-announces on the next BLE packet. (Do not call snapshot-on-completion from the watchdog — that could restart TTS on a potentially broken backend.)
 - On Android audio focus loss → treat as implicit speech end, reset state immediately
 - Ensures the app never gets permanently stuck in "TTS speaking" state with alerts silently dropped
 
@@ -224,6 +224,28 @@ Allows riders to submit a bug report without leaving the app or needing technica
 - **Fallback:** if browser cannot be opened, show a toast: *"Couldn't open browser"*
 - Works on both Android and iOS
 - GitHub issue: #44
+
+---
+
+### REQ-DEV-001: Debug Mode (Easter Egg)
+A hidden developer/debug mode is available for testing without exposing controls to regular users.
+
+**Unlock gesture:** Tap the VOXRIDER wordmark in the app header 7 times within a 4-second window.
+- The toggle is not visible in Settings or anywhere on screen
+- On unlock: `·DEV·` badge appears at low opacity below the wordmark; Android shows a brief toast
+- Debug mode state persists across app restarts
+- Once unlocked, debug mode remains on until the app is reinstalled or state is cleared
+
+**Debug mode capabilities (only visible when active):**
+- **Simulator:** "Simulate Threats" button starts a 1 Hz synthetic BLE feed with realistic car approach/pass sequences. Useful for validating alert logic without a physical Varia.
+- **Dual log panel:** Side-by-side ALG (alert engine decisions) and TTS (utterance execution) log streams, updated in real time — the primary diagnostic for silent-alert bugs.
+- **Last announcement:** Shows the most recently spoken utterance string.
+- **Traffic mode:** Selector for the simulator density (Quiet / Busy / Very Busy).
+
+**Acceptance criteria:**
+- No debug affordance visible to a regular user
+- Simulator runs independently of the BLE layer; the BLE reconnect loop does not interfere with alert evaluation while the simulator is active (connectionStatus is always treated as Connected in debug mode)
+- Debug state is stored in a dedicated Zustand store (`debugStore`) — separate from `radarStore` — so log updates do not trigger the BLE subscription and cause spurious alert evaluations
 
 ---
 
