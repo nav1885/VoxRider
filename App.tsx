@@ -89,8 +89,6 @@ export default function App(): React.JSX.Element {
         }
         // Ensure the foreground service + wake lock are running for background BLE/TTS
         NativeModules.VoxTTS?.startRadarService();
-        // Prompt to exempt from battery optimization — Samsung OEM killers suspend JS otherwise
-        NativeModules.VoxTTS?.requestIgnoreBatteryOptimizations();
       }
       if (pairedDevices.length > 0) {
         // Auto-connect to last paired device
@@ -127,7 +125,10 @@ export default function App(): React.JSX.Element {
             screenOptions={{headerShown: false}}>
             <Stack.Screen name="PairingStep1">
               {({navigation}) => (
-                <PairingStep1 onSearch={() => navigation.navigate('PairingStep2')} />
+                <PairingStep1
+                  onSearch={() => navigation.navigate('PairingStep2')}
+                  onSkip={() => navigation.reset({index: 0, routes: [{name: 'Main'}]})}
+                />
               )}
             </Stack.Screen>
 

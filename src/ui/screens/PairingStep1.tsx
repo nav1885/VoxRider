@@ -8,23 +8,30 @@ import {
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {Strings} from '../../constants/strings';
+import {DebugWordmark} from '../components/DebugWordmark';
+import {useSettingsStore} from '../../settings/settingsStore';
 
 interface Props {
   onSearch: () => void;
+  onSkip: () => void;
 }
 
-export function PairingStep1({onSearch}: Props): React.JSX.Element {
+export function PairingStep1({onSearch, onSkip}: Props): React.JSX.Element {
   const isDark = useColorScheme() === 'dark';
   const insets = useSafeAreaInsets();
+  const debugMode = useSettingsStore(s => s.debugMode);
 
   return (
     <View
       style={[styles.container, isDark && styles.containerDark]}
       testID="pairing-step1">
       <View style={[styles.content, {paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40}]}>
-        <Text style={styles.progress} testID="step-progress">
-          {Strings.pairingStep1Progress}
-        </Text>
+        <View style={styles.topRow}>
+          <Text style={styles.progress} testID="step-progress">
+            {Strings.pairingStep1Progress}
+          </Text>
+          <DebugWordmark color={isDark ? '#9CA3AF' : '#6B7280'} />
+        </View>
 
         {/* Varia device illustration + Search button */}
         <View style={styles.illustrationContainer} testID="varia-illustration">
@@ -39,6 +46,12 @@ export function PairingStep1({onSearch}: Props): React.JSX.Element {
             onPress={onSearch}>
             <Text style={styles.buttonText}>{Strings.pairingStep1Button}</Text>
           </TouchableOpacity>
+
+          {debugMode && (
+            <TouchableOpacity testID="debug-skip-button" onPress={onSkip}>
+              <Text style={[styles.skipLabel, isDark && styles.textDark]}>Skip (debug)</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </View>
@@ -53,10 +66,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     alignItems: 'center',
   },
+  topRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+  },
   progress: {
     fontSize: 13,
     color: '#9CA3AF',
-    alignSelf: 'flex-start',
   },
   illustrationContainer: {
     flex: 1,
@@ -83,6 +101,12 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   textDark: {color: '#F9FAFB'},
+  skipLabel: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginTop: 8,
+    textDecorationLine: 'underline',
+  },
   button: {
     width: 200,
     backgroundColor: '#16A34A',
