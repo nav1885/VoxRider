@@ -3,6 +3,7 @@ import {
   Animated,
   View,
   Text,
+  Image,
   TouchableOpacity,
   StyleSheet,
   useColorScheme,
@@ -18,6 +19,8 @@ import {RoadView} from '../components/RoadView';
 import {Strings} from '../../constants/strings';
 import {DebugSimulator} from '../../debug/DebugSimulator';
 import {AppHeader} from '../components/AppHeader';
+
+const logo = require('../../assets/logo.png');
 
 const BANNER_AUTO_DISMISS_MS = 5000;
 
@@ -158,6 +161,13 @@ export function MainScreen({onSwipeLeft}: Props): React.JSX.Element {
             <RoadView threats={threats} />
           </View>
 
+          {/* ── Logo watermark ── */}
+          {!debugMode && (
+            <View style={styles.logoContainer}>
+              <Image source={logo} style={styles.logo} resizeMode="contain" />
+            </View>
+          )}
+
           {/* ── Conflict hint ── */}
           {showConflictHint && (
             <View testID="conflict-hint" style={[styles.conflictBanner, {marginHorizontal: 16, marginBottom: 6}]}>
@@ -251,6 +261,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
+
+  // ── Logo ──
+  logoContainer: {alignItems: 'center', paddingVertical: 10},
+  logo: {width: 80, height: 80, opacity: 0.18},
 
   conflictBanner: {
     backgroundColor: '#FEF3C7',
