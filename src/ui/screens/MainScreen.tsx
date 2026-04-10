@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
 
   // ── Logo ──
   logoContainer: {alignItems: 'center', paddingVertical: 10},
-  logo: {width: 80, height: 80, opacity: 0.18},
+  logo: {width: 80, height: 80, opacity: 0.55},
 
   conflictBanner: {
     backgroundColor: '#FEF3C7',
