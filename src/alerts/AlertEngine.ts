@@ -34,10 +34,14 @@ export class AlertEngine {
   private pendingMaxLevel: ThreatLevel = ThreatLevel.None;
   private changeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private changeCapTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Timestamp when the current pending count was first seen — background timer fallback. */
+  private pendingFirstSeen: number | null = null;
 
   // Clear debounce
   private clearDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private clearCapTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Timestamp when the clear debounce first started — background timer fallback. */
+  private clearFirstSeen: number | null = null;
 
   private onTrigger: (trigger: AlertTrigger) => void;
   private logFn: ((line: string) => void) | null;
@@ -143,7 +147,12 @@ export class AlertEngine {
     // If a car oscillates medium/high/medium, we report high — conservative and stable.
     this.pendingMaxLevel = Math.max(this.pendingMaxLevel, maxLevel) as ThreatLevel;
 
-    // Restart debounce on every new change
+    // Track when this pending state began — used for background timer fallback below.
+    if (this.pendingFirstSeen === null) {
+      this.pendingFirstSeen = Date.now();
+    }
+
+    // Restart debounce on every new change (foreground path — timers work normally)
     if (this.changeDebounceTimer !== null) {
       clearTimeout(this.changeDebounceTimer);
     }
@@ -152,6 +161,13 @@ export class AlertEngine {
     // Cap: start only once — forces announcement on continuously busy roads
     if (this.changeCapTimer === null) {
       this.changeCapTimer = setTimeout(() => this._firePending(), CHANGE_CAP_MS);
+    }
+
+    // Background fallback: if JS timers are throttled (ReactChoreographer paused), fire
+    // when enough wall-clock time has elapsed since we first saw this count change.
+    // BLE callbacks still run synchronously — every incoming packet acts as a timer check.
+    if (Date.now() - this.pendingFirstSeen >= CHANGE_DEBOUNCE_MS) {
+      this._firePending();
     }
   }
 
@@ -164,6 +180,7 @@ export class AlertEngine {
       clearTimeout(this.changeCapTimer);
       this.changeCapTimer = null;
     }
+    this.pendingFirstSeen = null;
 
     if (this.pendingCount === null) {
       return;
@@ -195,6 +212,7 @@ export class AlertEngine {
     }
     this.pendingCount = null;
     this.pendingMaxLevel = ThreatLevel.None;
+    this.pendingFirstSeen = null;
   }
 
   private _fire(trigger: AlertTrigger): void {
@@ -203,8 +221,20 @@ export class AlertEngine {
   }
 
   private _startClearDebounce(): void {
+    // Track when the clear debounce first started for background timer fallback.
+    if (this.clearFirstSeen === null) {
+      this.clearFirstSeen = Date.now();
+    }
+
+    // Background fallback: fire immediately if debounce window already elapsed.
+    if (Date.now() - this.clearFirstSeen >= CLEAR_DEBOUNCE_MS) {
+      this._cancelClearDebounce();
+      this._fireClear();
+      return;
+    }
+
     if (this.clearDebounceTimer !== null) {
-      return; // Already pending
+      return; // Already pending — timer is running in foreground
     }
     this._log('clear debounce started');
     this.clearDebounceTimer = setTimeout(() => {
@@ -227,6 +257,7 @@ export class AlertEngine {
       clearTimeout(this.clearCapTimer);
       this.clearCapTimer = null;
     }
+    this.clearFirstSeen = null;
     if (resetIfPending && hadPending) {
       // Road was confirmed empty (clear debounce was running) — reset lastSpoken
       // so the incoming threat is treated as fresh regardless of count.

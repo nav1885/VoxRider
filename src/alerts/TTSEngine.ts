@@ -21,6 +21,7 @@ export interface ITTSBackend {
 export class TTSEngine {
   private speaking = false;
   private watchdog: ReturnType<typeof setTimeout> | null = null;
+  private watchdogStartTime: number | null = null;
   private currentThreats: Threat[] = [];
   private currentConnectionStatus: ConnectionStatus = ConnectionStatus.Disconnected;
   private verbosity: AlertVerbosity;
@@ -50,6 +51,14 @@ export class TTSEngine {
   updateState(threats: Threat[], connectionStatus: ConnectionStatus): void {
     this.currentThreats = threats;
     this.currentConnectionStatus = connectionStatus;
+    // Background watchdog fallback: JS setTimeout stops firing when ReactChoreographer
+    // pauses. Each BLE packet acts as a timer check — reset speaking if watchdog elapsed.
+    if (this.speaking && this.watchdogStartTime !== null &&
+        Date.now() - this.watchdogStartTime >= WATCHDOG_MS) {
+      this._log('WATCHDOG (sync) fired — speaking reset');
+      this._clearWatchdog();
+      this.speaking = false;
+    }
   }
 
   /** Fire an alert. Always dropped if TTS is speaking — snapshot-on-completion re-evaluates. */
@@ -119,6 +128,7 @@ export class TTSEngine {
 
   private _startWatchdog(): void {
     this._clearWatchdog();
+    this.watchdogStartTime = Date.now();
     this.watchdog = setTimeout(() => {
       // onFinished never fired — force reset speaking state only.
       // Don't call evaluateAfterTTSFinished here: that could immediately start
@@ -127,6 +137,7 @@ export class TTSEngine {
       this._log('WATCHDOG fired — speaking reset');
       this.speaking = false;
       this.watchdog = null;
+      this.watchdogStartTime = null;
     }, WATCHDOG_MS);
   }
 
@@ -135,6 +146,7 @@ export class TTSEngine {
       clearTimeout(this.watchdog);
       this.watchdog = null;
     }
+    this.watchdogStartTime = null;
   }
 
   private _log(line: string): void {
