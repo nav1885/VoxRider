@@ -196,5 +196,5 @@ const hSt = StyleSheet.create({
     alignItems: 'center',
     gap: 2,
   },
-  logo: {width: 44, height: 44},
+  logo: {width: 66, height: 44},
 });
