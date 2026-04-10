@@ -2,16 +2,21 @@
  * AppHeader — permanent top slot.
  *
  * Left  : connection status dot + device name
- * Center: minimal SVG bike + VOXRIDER wordmark
+ * Center: VoxRider logo (7-tap Easter egg unlocks debug mode)
  * Right : battery pill icon + percentage
  */
 
 import React, {useEffect, useRef} from 'react';
-import {Animated, View, Text, Image, StyleSheet, useColorScheme} from 'react-native';
+import {Animated, View, Text, Image, Platform, ToastAndroid, StyleSheet, useColorScheme} from 'react-native';
+import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import {ConnectionStatus} from '../../ble/types';
-import {DebugWordmark} from './DebugWordmark';
+import {useSettingsStore} from '../../settings/settingsStore';
 
 const logo = require('../../assets/logo.png');
+
+const DEBUG_TAP_COUNT_ON  = 7;
+const DEBUG_TAP_COUNT_OFF = 5;
+const DEBUG_TAP_WINDOW_MS = 8000;
 
 // ─── Battery pill ─────────────────────────────────────────────────────────────
 
@@ -107,6 +112,10 @@ interface Props {
 
 export function AppHeader({connectionStatus, deviceName, batteryLevel}: Props): React.JSX.Element {
   const isDark = useColorScheme() === 'dark';
+  const debugMode    = useSettingsStore(s => s.debugMode);
+  const setDebugMode = useSettingsStore(s => s.setDebugMode);
+  const tapCount    = useRef(0);
+  const lastTapTime = useRef(0);
 
   const deviceLabel =
     connectionStatus === ConnectionStatus.Connected && deviceName
@@ -118,6 +127,29 @@ export function AppHeader({connectionStatus, deviceName, batteryLevel}: Props): 
 
   const iconColor = isDark ? '#E5E7EB' : '#1F2937';
   const subColor  = isDark ? '#9CA3AF' : '#6B7280';
+
+  const tap = Gesture.Tap()
+    .runOnJS(true)
+    .onEnd(() => {
+      const now = Date.now();
+      if (now - lastTapTime.current > DEBUG_TAP_WINDOW_MS) {
+        tapCount.current = 0;
+      }
+      lastTapTime.current = now;
+      tapCount.current += 1;
+      const threshold = debugMode ? DEBUG_TAP_COUNT_OFF : DEBUG_TAP_COUNT_ON;
+      if (tapCount.current >= threshold) {
+        tapCount.current = 0;
+        const next = !debugMode;
+        setDebugMode(next);
+        if (Platform.OS === 'android') {
+          ToastAndroid.show(
+            next ? 'Debug mode enabled' : 'Debug mode disabled',
+            ToastAndroid.SHORT,
+          );
+        }
+      }
+    });
 
   return (
     <View style={[hSt.container, isDark ? hSt.containerDark : hSt.containerLight]}>
@@ -133,13 +165,13 @@ export function AppHeader({connectionStatus, deviceName, batteryLevel}: Props): 
         <Text testID="connection-status" style={[hSt.statusSub, {color: subColor}]}>
           {connectionStatus === ConnectionStatus.Connected ? 'Connected' : 'Radar'}
         </Text>
+        {debugMode && <Text style={[hSt.devBadge, {color: subColor}]}>·DEV·</Text>}
       </View>
 
-      {/* ── Center: logo + wordmark (7-tap Easter egg unlocks debug mode) ── */}
-      <View style={hSt.center}>
+      {/* ── Center: logo (7-tap Easter egg unlocks debug mode) ── */}
+      <GestureDetector gesture={tap}>
         <Image source={logo} style={hSt.logo} resizeMode="contain" />
-        <DebugWordmark color={iconColor} />
-      </View>
+      </GestureDetector>
 
       {/* ── Right: battery ── */}
       <View style={[hSt.side, hSt.sideRight]}>
@@ -190,11 +222,13 @@ const hSt = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 0.3,
   },
-
-  // Center
-  center: {
-    alignItems: 'center',
-    gap: 2,
+  devBadge: {
+    fontSize: 8,
+    fontWeight: '700',
+    letterSpacing: 2,
+    opacity: 0.4,
   },
-  logo: {width: 66, height: 44},
+
+  // Center logo — 3:2 ratio, fills header height
+  logo: {width: 120, height: 80},
 });
