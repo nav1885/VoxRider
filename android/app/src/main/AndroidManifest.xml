@@ -8,15 +8,16 @@
         tools:targetApi="s" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"
         tools:targetApi="s" />
-    <!-- Android 11 and below -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"
-        android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"
-        android:maxSdkVersion="30" />
+    <!-- Location permissions for Android 11 and below are declared by react-native-ble-plx.
+         We do not re-declare them here to avoid duplicate maxSdkVersion conflicts in Play Console.
+         On Android 12+, BLUETOOTH_SCAN with neverForLocation removes the location requirement. -->
 
     <!-- Foreground service (REQ-CON-003) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"
+        tools:targetApi="34" />
+    <!-- Required on Android 14+ to start audio playback from a background foreground service -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
         tools:targetApi="34" />
 
     <!-- Notification permission — required on Android 13+ to show the foreground service notification -->
@@ -53,7 +54,7 @@
       <!-- BLE foreground service -->
       <service
         android:name=".RadarService"
-        android:foregroundServiceType="connectedDevice"
+        android:foregroundServiceType="connectedDevice|mediaPlayback"
         android:exported="false" />
     </application>
 </manifest>

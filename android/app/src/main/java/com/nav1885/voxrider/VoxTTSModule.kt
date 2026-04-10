@@ -56,6 +56,14 @@ class VoxTTSModule(private val reactContext: ReactApplicationContext) :
             if (status == TextToSpeech.SUCCESS) {
                 tts?.language = Locale.US
                 tts?.setSpeechRate(0.65f)
+                // Navigation guidance usage: routes to earbuds/BT headphones (not speaker),
+                // ducks music, and works in background with FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK.
+                tts?.setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
                 ready = true
                 emit("init", "ready")
             } else {
