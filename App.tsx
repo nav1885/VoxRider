@@ -82,6 +82,17 @@ export default function App(): React.JSX.Element {
       if (Platform.OS === 'android') {
         if (voiceId) {
           NativeModules.VoxTTS?.setVoice(voiceId);
+        } else {
+          // No voice stored — pick the AU (Nova) voice as default, fall back to system default
+          try {
+            const voices: {id: string; region: string}[] =
+              await NativeModules.VoxTTS?.getVoices();
+            const auVoice = voices?.find(v => v.region === 'AU');
+            if (auVoice) {
+              NativeModules.VoxTTS?.setVoice(auVoice.id);
+              useSettingsStore.getState().setVoiceId(auVoice.id);
+            }
+          } catch {}
         }
         // Android 13+ requires POST_NOTIFICATIONS for the foreground service notification
         if (Platform.Version >= 33) {

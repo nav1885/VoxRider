@@ -27,7 +27,7 @@ interface SettingsState {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  verbosity: AlertVerbosity.Detailed,
+  verbosity: AlertVerbosity.Minimal,
   units: 'imperial',
   pairedDevices: [],
   debugMode: false,
@@ -80,7 +80,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       if (raw) {
         const saved = JSON.parse(raw);
         set({
-          verbosity: saved.verbosity ?? AlertVerbosity.Detailed,
+          verbosity: saved.verbosity ?? AlertVerbosity.Minimal,
           units: saved.units ?? 'imperial',
           pairedDevices: saved.pairedDevices ?? [],
           voiceId: saved.voiceId ?? null,
