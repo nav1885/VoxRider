@@ -7,58 +7,11 @@
  */
 
 import React, {useEffect, useRef} from 'react';
-import {Animated, View, Text, StyleSheet, useColorScheme} from 'react-native';
-import Svg, {Circle, Line, Path} from 'react-native-svg';
+import {Animated, View, Text, Image, StyleSheet, useColorScheme} from 'react-native';
 import {ConnectionStatus} from '../../ble/types';
 import {DebugWordmark} from './DebugWordmark';
 
-// ─── Minimal side-view bicycle ────────────────────────────────────────────────
-
-function BikeIcon({color}: {color: string}): React.JSX.Element {
-  // Sourced from svgrepo.com/svg/101223/road-bicycle — rendered as stroke paths
-  // to avoid fill-based native rendering issues. viewBox 0 0 406 406.
-  const s = 8;
-  return (
-    <Svg width={48} height={48} viewBox="0 0 406 406">
-      {/* Rear wheel */}
-      <Circle cx={82} cy={231} r={82} fill="none" stroke={color} strokeWidth={s}/>
-      {/* Front wheel */}
-      <Circle cx={324} cy={231} r={82} fill="none" stroke={color} strokeWidth={s}/>
-      {/* Rear hub */}
-      <Circle cx={82}  cy={231} r={8} fill={color}/>
-      {/* Front hub */}
-      <Circle cx={324} cy={231} r={8} fill={color}/>
-      {/* Chain stay */}
-      <Line x1={82}  y1={231} x2={200} y2={231} stroke={color} strokeWidth={s} strokeLinecap="round"/>
-      {/* Seat tube */}
-      <Line x1={200} y1={231} x2={181} y2={123} stroke={color} strokeWidth={s} strokeLinecap="round"/>
-      {/* Seat stays */}
-      <Line x1={181} y1={123} x2={82}  y2={231} stroke={color} strokeWidth={s} strokeLinecap="round"/>
-      {/* Top tube */}
-      <Line x1={181} y1={123} x2={299} y2={123} stroke={color} strokeWidth={s} strokeLinecap="round"/>
-      {/* Down tube */}
-      <Line x1={310} y1={153} x2={200} y2={231} stroke={color} strokeWidth={s} strokeLinecap="round"/>
-      {/* Head tube */}
-      <Line x1={299} y1={123} x2={310} y2={153} stroke={color} strokeWidth={s * 2} strokeLinecap="round"/>
-      {/* Fork */}
-      <Line x1={310} y1={153} x2={324} y2={231} stroke={color} strokeWidth={s} strokeLinecap="round"/>
-      {/* Chainring */}
-      <Circle cx={200} cy={231} r={28} fill="none" stroke={color} strokeWidth={s}/>
-      {/* Seat post */}
-      <Line x1={181} y1={123} x2={181} y2={70}  stroke={color} strokeWidth={s} strokeLinecap="round"/>
-      {/* Saddle */}
-      <Line x1={148} y1={70}  x2={214} y2={70}  stroke={color} strokeWidth={s * 2} strokeLinecap="round"/>
-      {/* Stem */}
-      <Line x1={299} y1={123} x2={348} y2={70}  stroke={color} strokeWidth={s} strokeLinecap="round"/>
-      {/* Bar top */}
-      <Line x1={332} y1={70}  x2={372} y2={70}  stroke={color} strokeWidth={s} strokeLinecap="round"/>
-      {/* Drop near */}
-      <Path d="M372,70 C390,85 390,120 372,126" stroke={color} strokeWidth={s} strokeLinecap="round" fill="none"/>
-      {/* Drop far */}
-      <Path d="M332,70 C314,85 314,116 332,122" stroke={color} strokeWidth={s * 0.8} strokeLinecap="round" fill="none"/>
-    </Svg>
-  );
-}
+const logo = require('../../assets/logo.png');
 
 // ─── Battery pill ─────────────────────────────────────────────────────────────
 
@@ -182,9 +135,9 @@ export function AppHeader({connectionStatus, deviceName, batteryLevel}: Props): 
         </Text>
       </View>
 
-      {/* ── Center: bike + wordmark (7-tap Easter egg unlocks debug mode) ── */}
+      {/* ── Center: logo + wordmark (7-tap Easter egg unlocks debug mode) ── */}
       <View style={hSt.center}>
-        <BikeIcon color={iconColor} />
+        <Image source={logo} style={hSt.logo} resizeMode="contain" />
         <DebugWordmark color={iconColor} />
       </View>
 
@@ -243,4 +196,5 @@ const hSt = StyleSheet.create({
     alignItems: 'center',
     gap: 2,
   },
+  logo: {width: 44, height: 44},
 });
