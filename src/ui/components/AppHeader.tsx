@@ -11,6 +11,7 @@ import {Animated, View, Text, Image, Platform, ToastAndroid, StyleSheet, useColo
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import {ConnectionStatus} from '../../ble/types';
 import {useSettingsStore} from '../../settings/settingsStore';
+import {DebugWordmark} from './DebugWordmark';
 
 const logo = require('../../assets/logo.png');
 
@@ -168,10 +169,13 @@ export function AppHeader({connectionStatus, deviceName, batteryLevel}: Props): 
         {debugMode && <Text style={[hSt.devBadge, {color: subColor}]}>·DEV·</Text>}
       </View>
 
-      {/* ── Center: logo (7-tap Easter egg unlocks debug mode) ── */}
-      <GestureDetector gesture={tap}>
-        <Image source={logo} style={hSt.logo} resizeMode="contain" />
-      </GestureDetector>
+      {/* ── Center: logo + wordmark (7-tap Easter egg unlocks debug mode) ── */}
+      <View style={hSt.center}>
+        <GestureDetector gesture={tap}>
+          <Image source={logo} style={hSt.logo} resizeMode="contain" />
+        </GestureDetector>
+        <DebugWordmark color={iconColor} />
+      </View>
 
       {/* ── Right: battery ── */}
       <View style={[hSt.side, hSt.sideRight]}>
@@ -229,6 +233,9 @@ const hSt = StyleSheet.create({
     opacity: 0.4,
   },
 
-  // Center logo — 3:2 ratio, fills header height
-  logo: {width: 120, height: 80},
+  // Center
+  center: {alignItems: 'center', gap: 2},
+
+  // Logo — 3:2 ratio
+  logo: {width: 150, height: 100},
 });
