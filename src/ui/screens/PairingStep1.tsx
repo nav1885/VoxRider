@@ -2,6 +2,7 @@ import React from 'react';
 import {
   View,
   Text,
+  Image,
   TouchableOpacity,
   StyleSheet,
   useColorScheme,
@@ -9,6 +10,8 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {Strings} from '../../constants/strings';
 import {DebugWordmark} from '../components/DebugWordmark';
+
+const logo = require('../../assets/logo.png');
 import {useSettingsStore} from '../../settings/settingsStore';
 
 interface Props {
@@ -32,6 +35,9 @@ export function PairingStep1({onSearch, onSkip}: Props): React.JSX.Element {
           </Text>
           <DebugWordmark color={isDark ? '#9CA3AF' : '#6B7280'} />
         </View>
+
+        {/* Logo */}
+        <Image source={logo} style={styles.logo} resizeMode="contain" />
 
         {/* Varia device illustration + Search button */}
         <View style={styles.illustrationContainer} testID="varia-illustration">
@@ -76,6 +82,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#9CA3AF',
   },
+  logo: {width: 240, height: 160, marginTop: 8},
+
   illustrationContainer: {
     flex: 1,
     justifyContent: 'center',
