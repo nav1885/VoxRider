@@ -1,29 +1,27 @@
 import {Threat, ThreatLevel, RadarPacket} from './types';
 
-const REASSEMBLY_TIMEOUT_MS = 500;
-
-// Split packet reassembly buffer — keyed by sequence ID
-interface PartialPacket {
-  threats: Threat[];
-  timer: ReturnType<typeof setTimeout>;
-}
-const partialPackets = new Map<number, PartialPacket>();
-
 /**
- * Parse a raw BLE radar notification from the Garmin Varia.
+ * Parse a raw BLE radar notification from the Garmin Varia RTL515/516.
  *
- * Packet format:
- *   Byte 0: [sequence_id: upper 4 bits][threat_count: lower 4 bits]
- *   Per threat (3 bytes):
- *     Byte 0: speed (uint8 m/s)
- *     Byte 1: distance (uint8 meters, 0–255)
- *     Byte 2: flags (bits 7–6 = threat level: 0=none,1=medium,2=high,3=unknown)
+ * Packet format (empirically verified against real hardware + forum sources):
+ *   Byte 0: header — upper 4 bits = rolling counter (informational only)
+ *                    lower 4 bits = always 0x2 (protocol constant, NOT threat count)
+ *   Per threat (3 bytes each):
+ *     Byte 0: vehicleId — uint8, constant per physical vehicle across packets
+ *     Byte 1: distance  — uint8 meters (decreases as vehicle approaches)
+ *     Byte 2: speed     — uint8 km/h; bits 7-6 encode threat level:
+ *               00 = None, 01 = Medium, 10 = High, 11 = Unknown
  *
- * Split packets (>6 threats exceed 20-byte BLE MTU) share a sequence ID.
- * They are reassembled within REASSEMBLY_TIMEOUT_MS (500ms).
+ * Threat count is derived solely from packet length: (length - 1) / 3
+ * The lower nibble of the header is NOT a threat count — never use it as one.
  *
- * Returns null if packet is incomplete (waiting for split reassembly).
- * Returns RadarPacket with empty threats array for idle/clear (1-byte packet).
+ * Returns null for empty byte arrays.
+ * Returns RadarPacket with empty threats array for 1-byte idle/clear packets.
+ *
+ * Canonical test vectors (Varia RTL515 demo mode, 2025-04):
+ *   82 A5 76 58 AE 89 44  → 2 threats: {vId=0xA5,d=118m,s=88kmh,M} {vId=0xAE,d=137m,s=68kmh,M}
+ *   82 AE 2B 44           → 1 threat:  {vId=0xAE,d=43m,s=68kmh,M}
+ *   82                    → 0 threats (clear)
  */
 export function parseRadarPacket(bytes: Uint8Array): RadarPacket | null {
   if (bytes.length === 0) {
@@ -37,49 +35,32 @@ export function parseRadarPacket(bytes: Uint8Array): RadarPacket | null {
 
   const header = bytes[0];
   const sequenceId = (header >> 4) & 0x0f;
-  const threatCount = header & 0x0f;
+
+  // Count from length — lower nibble is always 0x2, never a count
+  const threatCount = Math.floor((bytes.length - 1) / 3);
 
   const threats: Threat[] = [];
-  const maxThreats = Math.min(threatCount, Math.floor((bytes.length - 1) / 3));
 
-  for (let i = 0; i < maxThreats; i++) {
+  for (let i = 0; i < threatCount; i++) {
     const offset = 1 + i * 3;
     if (offset + 2 >= bytes.length) {
       break;
     }
-    const speed = bytes[offset];
+    const vehicleId = bytes[offset];
     const distance = bytes[offset + 1];
-    const flags = bytes[offset + 2];
-    const rawLevel = (flags >> 6) & 0x03;
+    const speedRaw = bytes[offset + 2];
+    const rawLevel = (speedRaw >> 6) & 0x03;
     const level = rawLevel as ThreatLevel;
 
-    threats.push({speed, distance, level});
-  }
-
-  // Check if a prior fragment with this sequence ID is buffered — if so, merge
-  const existing = partialPackets.get(sequenceId);
-  if (existing) {
-    clearTimeout(existing.timer);
-    partialPackets.delete(sequenceId);
-    return {sequenceId, threats: [...existing.threats, ...threats]};
-  }
-
-  // Check if this packet is the first fragment of a split (promises more than it carries)
-  const isSplit = threatCount > maxThreats;
-  if (isSplit) {
-    const timer = setTimeout(() => {
-      partialPackets.delete(sequenceId);
-    }, REASSEMBLY_TIMEOUT_MS);
-    partialPackets.set(sequenceId, {threats, timer});
-    return null;
+    threats.push({vehicleId, speed: speedRaw, distance, level});
   }
 
   return {sequenceId, threats};
 }
 
-/** Extract threat level from flags byte (bits 7–6) */
-export function parseThreatLevel(flags: number): ThreatLevel {
-  return ((flags >> 6) & 0x03) as ThreatLevel;
+/** Extract threat level from speed byte (bits 7–6) */
+export function parseThreatLevel(speedByte: number): ThreatLevel {
+  return ((speedByte >> 6) & 0x03) as ThreatLevel;
 }
 
 /** Resolve Unknown threat level to Medium (conservative default) */

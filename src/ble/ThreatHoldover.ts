@@ -15,10 +15,15 @@ import {getMaxThreatLevel} from './parseRadarPacket';
  *   The only problem to solve is BLE dropouts producing transient count=0 packets.
  *
  * Solution:
- *   - Count increases and level escalations propagate IMMEDIATELY (safety first).
+ *   - 0→N count increases are immediate (safety first — new car on a clear road).
+ *   - N→M count increases (N > 0) are held for INCREASE_HOLD_MS before committing.
+ *     The real RTL515 can report one physical car across two BLE threat slots
+ *     briefly as it approaches. Holding for ~1.5 s (1–2 Varia packets at 1 Hz)
+ *     absorbs these phantom multi-slot artifacts without delaying real arrivals
+ *     (a car at 140 m still gives >3 s of warning at 100 km/h).
  *   - Count decreases are held for HOLDOVER_MS before propagating to the store.
  *   - If count recovers during the hold window → cancel hold, update immediately.
- *   - This absorbs BLE dropouts without any distance-based matching.
+ *   - Level escalations at the same count are always immediate.
  */
 
 const HOLDOVER_MS = 2000; // covers typical BLE dropout bursts (~1–3 s)
@@ -33,10 +38,24 @@ const HOLDOVER_MS = 2000; // covers typical BLE dropout bursts (~1–3 s)
  */
 const PASS_THRESHOLD_M = 30;
 
+/**
+ * How long to hold a count *increase* from N→M (N > 0) before committing.
+ * Suppresses phantom multi-slot count spikes from the real Varia RTL515.
+ * Must be 0→N for the timer to NOT apply (new car is always immediate).
+ */
+const INCREASE_HOLD_MS = 1500;
+
 export class ThreatHoldover {
   private stable: Threat[] = [];
+
+  // Decrease holdover
   private holdTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingThreats: Threat[] = [];
+
+  // Increase holdover (N→M where N > 0)
+  private increaseHoldTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingIncreaseThreats: Threat[] = [];
+
   private onUpdate: (threats: Threat[]) => void;
 
   constructor(onUpdate: (threats: Threat[]) => void) {
@@ -52,29 +71,26 @@ export class ThreatHoldover {
     const isIncrease = newCount > stableCount;
     const isEscalation = newCount > 0 && newMax > stableMax;
 
-    if (isIncrease || isEscalation) {
-      // More threats or escalation — always immediate
-      this._cancelHold();
-      this._commit(raw);
-      return;
-    }
-
+    // ── Count decreased ──────────────────────────────────────────────────────
     if (newCount < stableCount) {
-      // If the closest stable vehicle was within pass threshold, it physically
-      // passed the rider — evict immediately rather than holding.
+      // Count fell back — any in-flight increase was phantom; cancel it.
+      this._cancelIncreaseHold();
+
       // Guard: stableCount > 0 here by invariant, but be explicit to avoid
       // Math.min(...[]) returning Infinity on an unexpected empty stable array.
       const closestStable =
         this.stable.length > 0
           ? Math.min(...this.stable.map(t => t.distance))
           : Infinity;
+
       if (closestStable <= PASS_THRESHOLD_M) {
+        // Car almost certainly passed the rider — evict immediately.
         this._cancelHold();
         this._commit(raw);
         return;
       }
 
-      // Count dropped mid-road — start hold to absorb BLE dropouts
+      // Count dropped mid-road — start hold to absorb BLE dropouts.
       this.pendingThreats = raw;
       if (this.holdTimer === null) {
         this.holdTimer = setTimeout(() => {
@@ -85,15 +101,52 @@ export class ThreatHoldover {
       return;
     }
 
-    // Same count (newCount === stableCount), same or lower level.
-    // If a hold is running, count has recovered — cancel hold and commit.
-    // If no hold, just propagate the updated position/speed.
+    // ── Count increased ──────────────────────────────────────────────────────
+    if (isIncrease) {
+      this._cancelHold();
+
+      if (stableCount === 0) {
+        // 0→N: new car from a clear road — always immediate (safety-critical).
+        this._cancelIncreaseHold();
+        this._commit(raw);
+        return;
+      }
+
+      // N→M (N > 0): hold before committing.
+      // Track the highest count seen during the hold window.
+      if (raw.length >= this.pendingIncreaseThreats.length) {
+        this.pendingIncreaseThreats = raw;
+      }
+      if (this.increaseHoldTimer === null) {
+        this.increaseHoldTimer = setTimeout(() => {
+          this.increaseHoldTimer = null;
+          const pending = this.pendingIncreaseThreats;
+          this.pendingIncreaseThreats = [];
+          this._commit(pending);
+        }, INCREASE_HOLD_MS);
+      }
+      return;
+    }
+
+    // ── Level escalation at the same count ──────────────────────────────────
+    if (isEscalation) {
+      this._cancelHold();
+      this._cancelIncreaseHold();
+      this._commit(raw);
+      return;
+    }
+
+    // ── Same count, same or lower level ─────────────────────────────────────
+    // Count returned to stable level — cancel any in-flight increase hold.
+    this._cancelIncreaseHold();
+    // Count recovered from a decrease hold — cancel and commit.
     this._cancelHold();
     this._commit(raw);
   }
 
   reset(): void {
     this._cancelHold();
+    this._cancelIncreaseHold();
     this.stable = [];
     this.onUpdate([]);
   }
@@ -108,5 +161,13 @@ export class ThreatHoldover {
       clearTimeout(this.holdTimer);
       this.holdTimer = null;
     }
+  }
+
+  private _cancelIncreaseHold(): void {
+    if (this.increaseHoldTimer !== null) {
+      clearTimeout(this.increaseHoldTimer);
+      this.increaseHoldTimer = null;
+    }
+    this.pendingIncreaseThreats = [];
   }
 }

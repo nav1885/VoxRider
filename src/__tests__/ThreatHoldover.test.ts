@@ -17,24 +17,76 @@ describe('ThreatHoldover', () => {
   afterEach(() => jest.useRealTimers());
 
   describe('immediate propagation', () => {
-    it('propagates first threat immediately', () => {
+    it('propagates first threat immediately (0→N is always immediate)', () => {
       holdover.feed([med()]);
       expect(updates).toHaveLength(1);
       expect(updates[0]).toHaveLength(1);
     });
 
-    it('propagates count increase immediately', () => {
-      holdover.feed([med()]);
-      holdover.feed([med(), med(60)]);
-      expect(updates).toHaveLength(2);
-      expect(updates[1]).toHaveLength(2);
-    });
-
-    it('propagates escalation immediately', () => {
+    it('propagates escalation (same count, higher level) immediately', () => {
       holdover.feed([med()]);
       holdover.feed([high()]);
       expect(updates).toHaveLength(2);
       expect(updates[1][0].level).toBe(ThreatLevel.High);
+    });
+  });
+
+  describe('increase holdover (N→M where N > 0)', () => {
+    it('does not propagate N→M increase immediately when N > 0', () => {
+      holdover.feed([med()]);       // 0→1: immediate
+      holdover.feed([med(), med(60)]); // 1→2: held
+      expect(updates).toHaveLength(1); // stable still shows 1 car
+    });
+
+    it('commits the increase after INCREASE_HOLD_MS when count stays high', () => {
+      holdover.feed([med()]);
+      holdover.feed([med(), med(60)]);
+      expect(updates).toHaveLength(1);
+      jest.advanceTimersByTime(1501);
+      expect(updates).toHaveLength(2);
+      expect(updates[1]).toHaveLength(2);
+    });
+
+    it('cancels the increase hold when count falls back to stable', () => {
+      holdover.feed([med()]);
+      holdover.feed([med(), med(60)]); // 1→2: increase hold starts
+      holdover.feed([med(75)]);        // back to 1 — phantom confirmed
+      jest.advanceTimersByTime(2000);  // hold would have fired here
+      // Should never have committed the 2-car state
+      updates.forEach(u => expect(u.length).toBeLessThanOrEqual(1));
+      // Latest update is 1 car (position update)
+      expect(updates[updates.length - 1]).toHaveLength(1);
+    });
+
+    it('cancels the increase hold when count drops below stable', () => {
+      holdover.feed([med()]);
+      holdover.feed([med(), med(60)]); // 1→2: increase hold starts
+      holdover.feed([]);               // 0 < stable(1) → decrease hold, increase hold cancelled
+      jest.advanceTimersByTime(2000);  // decrease hold fires
+      // Should have committed 0 (clear), never 2
+      const counts = updates.map(u => u.length);
+      expect(counts).not.toContain(2);
+    });
+
+    it('tracks the highest count during the hold window', () => {
+      holdover.feed([med()]);                  // 0→1: immediate
+      holdover.feed([med(), med(60)]);         // 1→2: hold starts
+      holdover.feed([med(), med(60), med(50)]); // 1→3: update pending (still N>0 hold)
+      jest.advanceTimersByTime(1501);
+      // Should commit 3, not 2
+      expect(updates[updates.length - 1]).toHaveLength(3);
+    });
+
+    it('RTL515 phantom 2-slot bug: 1 physical car never triggers "2 cars"', () => {
+      // Simulate RTL515 oscillating between 1 and 2 slots for a single car
+      holdover.feed([med(120)]); // 0→1: immediate — "1 car approaching"
+      holdover.feed([med(110), med(110)]); // 1→2: hold starts
+      holdover.feed([med(100)]);           // 1→2 hold cancelled — back to 1
+      holdover.feed([med(90), med(90)]);   // hold starts again
+      holdover.feed([med(80)]);            // hold cancelled again
+      jest.advanceTimersByTime(2000);
+      // Should never have committed 2 cars
+      updates.forEach(u => expect(u.length).toBeLessThanOrEqual(1));
     });
   });
 
@@ -79,7 +131,7 @@ describe('ThreatHoldover', () => {
     });
 
     it('holds the pending count — takes the last value seen when timer fires', () => {
-      holdover.feed([med(), med(60)]);  // 2 cars
+      holdover.feed([med(), med(60)]);  // 0→2: immediate (stableCount was 0)
       holdover.feed([med()]);           // drops to 1 — hold starts, no emit
       expect(updates).toHaveLength(1);  // still showing 2 cars, not 1
       jest.advanceTimersByTime(500);
@@ -128,14 +180,24 @@ describe('ThreatHoldover', () => {
   });
 
   describe('reset', () => {
-    it('clears state and cancels hold on reset', () => {
+    it('clears state and cancels both holds on reset', () => {
       holdover.feed([med()]);
-      holdover.feed([]); // hold starts
+      holdover.feed([]); // decrease hold starts
       holdover.reset();
       jest.advanceTimersByTime(3000); // hold should NOT fire
       // Only updates: initial feed + reset's empty emit
       const empties = updates.filter(u => u.length === 0);
       expect(empties).toHaveLength(1); // only the reset one
+    });
+
+    it('cancels increase hold on reset', () => {
+      holdover.feed([med()]);
+      holdover.feed([med(), med(60)]); // increase hold starts
+      holdover.reset();
+      jest.advanceTimersByTime(2000); // hold should NOT fire
+      // Only update: initial 0→1 feed + reset's empty emit
+      const twoCarUpdates = updates.filter(u => u.length === 2);
+      expect(twoCarUpdates).toHaveLength(0);
     });
   });
 });

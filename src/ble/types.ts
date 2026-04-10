@@ -6,8 +6,9 @@ export enum ThreatLevel {
 }
 
 export interface Threat {
-  speed: number; // raw uint8 m/s
-  distance: number; // raw uint8 meters
+  vehicleId?: number; // uint8 — persistent ID assigned by Varia per detected vehicle
+  speed: number;      // uint8 km/h (bits 7-6 encode threat level)
+  distance: number;   // uint8 meters
   level: ThreatLevel;
 }
 

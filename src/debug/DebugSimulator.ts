@@ -157,7 +157,8 @@ export class DebugSimulator {
     }
 
     const threats: Threat[] = this.vehicles.map(v => ({
-      speed: v.speed,
+      vehicleId: v.id & 0xFF,
+      speed: Math.round(v.speed * 3.6), // m/s → km/h to match real Varia BLE encoding
       distance: Math.round(v.distance),
       level: v.level,
     }));
