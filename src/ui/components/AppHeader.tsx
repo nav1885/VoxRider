@@ -188,9 +188,9 @@ export function AppHeader({connectionStatus, deviceName, batteryLevel}: Props): 
 const hSt = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    alignItems: 'stretch',
+    alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 4,
+    paddingVertical: 6,
     marginHorizontal: 0,
     marginBottom: 8,
     borderRadius: 16,
@@ -206,7 +206,6 @@ const hSt = StyleSheet.create({
   side: {
     flex: 1,
     gap: 3,
-    justifyContent: 'center',
   },
   sideRight: {
     alignItems: 'flex-end',
@@ -232,7 +231,7 @@ const hSt = StyleSheet.create({
     opacity: 0.4,
   },
 
-  // Center — stretches to full bar height, logo fills it
+  // Center
   center: {justifyContent: 'center', alignItems: 'center'},
-  logo: {height: '100%', aspectRatio: 1.5},
+  logo: {width: 90, height: 60},
 });
