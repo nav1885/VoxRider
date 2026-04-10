@@ -6,6 +6,7 @@ import {useRadarStore} from './radarStore';
 import {ConnectionStatus} from './types';
 import {ThreatHoldover} from './ThreatHoldover';
 import {SUPPORTED_DEVICES} from './deviceProfiles';
+import {useDebugStore} from '../debug/debugStore';
 
 // Standard BLE battery service (same across all devices)
 const BATTERY_SERVICE_UUID = '0000180F-0000-1000-8000-00805F9B34FB';
@@ -186,6 +187,9 @@ export class RealBLEManager implements IBLEManager {
         : RECONNECT_SLOW_INTERVAL_MS;
 
     this.reconnectTimer = setTimeout(async () => {
+      // Restore Reconnecting status — connect() sets it to Disconnected on failure,
+      // which would flash "No device" in the UI between retry attempts.
+      useRadarStore.getState().setConnectionStatus(ConnectionStatus.Reconnecting);
       try {
         await this.connect(deviceId);
         // connect() sets status to Connected on success
@@ -230,8 +234,12 @@ export class RealBLEManager implements IBLEManager {
         }
         const bytes = new Uint8Array(Buffer.from(characteristic.value, 'base64'));
         const packet = parseRadarPacket(bytes);
-        const rawThreats = packet?.threats ?? [];
-        this.threatHoldover.feed(rawThreats);
+        // Log raw bytes + parsed result before holdover sees it.
+        // threats=null means split reassembly is pending — logged as "parsed=pending".
+        useDebugStore.getState().appendPacketLog(bytes, packet?.threats ?? null);
+        if (packet !== null) {
+          this.threatHoldover.feed(packet.threats);
+        }
       },
     );
   }

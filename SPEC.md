@@ -80,14 +80,19 @@ The Garmin Varia RTL515 exposes a BLE GATT service that streams radar data conti
 
 - **Service UUID:** `6A4E3200-667B-11E3-949A-0800200C9A66`
 - **Characteristic UUID:** `6A4E3203-667B-11E3-949A-0800200C9A66`
-- **Packet format:** `1 + (3 × n)` bytes, where `n` = threat count
-  - Byte 0: `[sequence_id: 4 bits][threat_count: 4 bits]`
+- **Packet format:** `1 + (3 × n)` bytes, where `n` = `(length - 1) / 3`
+  - Byte 0: `[rolling_counter: upper 4 bits][protocol_constant: lower 4 bits — always 0x2, not a count]`
   - Per threat (bytes 1, 4, 7...):
-    - Byte 0: speed (`uint8`, m/s)
-    - Byte 1: distance (`uint8`, meters, max 255m)
-    - Byte 2: flags — bits 7–6: threat level (`0`=none, `1`=medium, `2`=high, `3`=unknown)
-- **Split packets:** Payloads exceeding the 20-byte BLE MTU are split. Fragments share a sequence ID (upper nibble of byte 0) and are reassembled by the client.
-- **Update rate:** ~1 Hz (one notification per second) regardless of threat count. Clear state = 1-byte idle packet; threats present = `1 + 3N` byte packet. Sub-second filler packets exist but carry zero threats and are ignored by the parser. Source: https://forums.garmin.com/developer/connect-iq/f/discussion/240452/bluetooth-profile-for-garmin-varia-rtl515
+    - Byte 0: `vehicleId` (`uint8`) — persistent ID assigned by Varia per physical vehicle; constant across packets for the same vehicle
+    - Byte 1: `distance` (`uint8`, meters) — decreases as vehicle approaches; max ~140m in practice
+    - Byte 2: `speed` (`uint8`, km/h) — bits 7–6 encode threat level: `00`=none, `01`=medium, `10`=high, `11`=unknown
+  - **Threat count** is derived solely from packet length — the lower nibble of byte 0 is a protocol constant (`0x2`), never a count
+  - **No split packets** — the Varia never fragments packets; the lower nibble is not a fragment counter
+- **Canonical test vectors** (Varia RTL515 demo mode, 2025-04, empirically verified):
+  - `82 A5 76 58 AE 89 44` → 2 threats: `{vId=0xA5, d=118m, s=88km/h, Medium}` `{vId=0xAE, d=137m, s=68km/h, Medium}`
+  - `82 AE 2B 44` → 1 threat: `{vId=0xAE, d=43m, s=68km/h, Medium}`
+  - `82` → 0 threats (clear)
+- **Update rate:** ~1 Hz (one notification per second) regardless of threat count. Clear state = 1-byte idle packet; threats present = `1 + 3N` byte packet. Sources: https://forums.garmin.com/developer/connect-iq/f/discussion/240452/bluetooth-profile-for-garmin-varia-rtl515 and pycycling library (https://github.com/zacharyedwardbull/pycycling — `rear_view_radar.py`)
 - **Device name prefix:** `RTL` (e.g. `RTL64894`)
 
 ### Pairing behaviour

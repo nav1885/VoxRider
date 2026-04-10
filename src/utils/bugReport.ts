@@ -1,8 +1,12 @@
 import {Platform, Linking} from 'react-native';
 import {APP_VERSION} from '../constants/version';
 import {useRadarStore} from '../ble/radarStore';
+import {useDebugStore} from '../debug/debugStore';
 
 const GITHUB_REPO = 'nav1885/VoxRider';
+
+// GitHub issue body URL limit — stay well under 8192 chars after encoding
+const MAX_LOG_CHARS = 1500;
 
 function getDeviceModel(): string {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -19,17 +23,25 @@ function getDeviceModel(): string {
   return `${model} (${systemName} ${systemVersion})`.trim();
 }
 
-export async function openBugReport(): Promise<void> {
-  const {debugTTSLog, connectionStatus, threats} = useRadarStore.getState();
+/** Trim a multi-line log to its last N characters, preserving whole lines. */
+function trimLog(log: string, maxChars: number): string {
+  if (!log) {
+    return '  (none)';
+  }
+  const trimmed = log.length > maxChars ? log.slice(log.length - maxChars) : log;
+  // Drop a potentially partial first line after slicing
+  const firstNewline = trimmed.indexOf('\n');
+  const clean = firstNewline > 0 ? trimmed.slice(firstNewline + 1) : trimmed;
+  return clean
+    .split('\n')
+    .filter(Boolean)
+    .map(l => `  ${l}`)
+    .join('\n');
+}
 
-  const ttsLines = debugTTSLog
-    ? debugTTSLog
-        .split('\n')
-        .filter(Boolean)
-        .slice(-10)
-        .map(l => `  - ${l}`)
-        .join('\n')
-    : '  (none)';
+export async function openBugReport(): Promise<void> {
+  const {connectionStatus, threats} = useRadarStore.getState();
+  const {ttsLog, alertLog, packetLog, lastAnnouncement} = useDebugStore.getState();
 
   const body = [
     '**Describe the bug**',
@@ -43,8 +55,22 @@ export async function openBugReport(): Promise<void> {
     `- Timestamp: ${new Date().toISOString()}`,
     `- Connection status: ${connectionStatus}`,
     `- Active threats: ${threats.length}`,
-    `- Last TTS events:`,
-    ttsLines,
+    `- Last announcement: ${lastAnnouncement || '(none)'}`,
+    '',
+    '**Packet log** (raw BLE threats per tick — `N  {s=speed,d=dist,Level}`):',
+    '```',
+    trimLog(packetLog, MAX_LOG_CHARS),
+    '```',
+    '',
+    '**Alert engine log:**',
+    '```',
+    trimLog(alertLog, MAX_LOG_CHARS),
+    '```',
+    '',
+    '**TTS log:**',
+    '```',
+    trimLog(ttsLog, MAX_LOG_CHARS),
+    '```',
   ].join('\n');
 
   const url =
@@ -53,7 +79,5 @@ export async function openBugReport(): Promise<void> {
     `&body=${encodeURIComponent(body)}` +
     `&labels=${encodeURIComponent('bug')}`;
 
-  // canOpenURL returns false for https on Android 11+ without a <queries> manifest entry.
-  // openURL works regardless — let it throw naturally if no browser is installed.
   await Linking.openURL(url);
 }

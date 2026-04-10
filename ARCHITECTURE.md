@@ -68,9 +68,12 @@ parseRadarPacket() → Threat[]
 A custom Kotlin native module (`VoxTTSModule.kt`) bypasses react-native-tts entirely on Android:
 
 - Uses `TextToSpeech.QUEUE_FLUSH` — resets engine state before each utterance
-- Routes audio to `AudioManager.STREAM_ALARM` — bypasses media volume, always audible
+- Audio attributes: `USAGE_ASSISTANCE_NAVIGATION_GUIDANCE` + `CONTENT_TYPE_SPEECH` — routes to earbuds/BT headphones, ducks music, works in background
+- Audio focus: `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK` — music ducks while speaking
 - Speech rate: `0.65f` (crisp but clear for helmet/wind noise)
 - Emits `VoxTTSEvent` via `RCTDeviceEventEmitter` for all lifecycle events (start, done, stop, error)
+
+`RadarService.kt` declares `FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE | FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK` (Android 14+) — required for background audio playback from a foreground service.
 
 ### iOS
 
@@ -89,7 +92,13 @@ if (Platform.OS === 'android') {
 }
 ```
 
-VoxTTSEvent callbacks write to `radarStore.debugTTSLog` (a separate field from `debugLastAnnouncement`) to avoid triggering the Zustand subscription feedback loop.
+VoxTTSEvent callbacks write to `debugStore.ttsLog` (isolated from `radarStore` to avoid triggering the Zustand BLE subscription feedback loop).
+
+### Background JS timer throttling (Android)
+
+When the app is backgrounded, Android pauses React Native's `ReactChoreographer`. This stops all `setTimeout`/`setInterval` callbacks from firing — including `AlertEngine`'s debounce and cap timers. BLE notification callbacks still run (they're native bridge, synchronous) and `console.log` / `Date.now()` still work.
+
+**Fix:** `AlertEngine` and `TTSEngine` track `Date.now()` timestamps when debounce windows start. Every incoming BLE packet acts as an implicit timer check — if the wall-clock window has elapsed, the alert fires synchronously without needing a timer. In foreground, the real `setTimeout` fires first as usual; in background, the synchronous check fires on the first packet after the window elapses.
 
 ---
 
@@ -123,8 +132,7 @@ Alert message format (via `buildAlertMessage()`):
 | `connectedDevice` | `DeviceInfo \| null` | Name/ID of connected Varia |
 | `batteryLevel` | `number \| null` | Varia battery % (0–100) |
 | `consecutiveFailures` | `number` | Connect failures — drives conflict hint at ≥3 |
-| `debugLastAnnouncement` | `string` | Last message passed to TTS (debug display) |
-| `debugTTSLog` | `string` | Latest VoxTTSEvent from native module (debug display) |
+| `debugLastAnnouncement` | `string` | Last message passed to TTS (debug display — use `debugStore.lastAnnouncement`) |
 
 ### useSettingsStore
 
@@ -138,6 +146,17 @@ Alert message format (via `buildAlertMessage()`):
 
 Selector-based subscriptions prevent cascade re-renders from high-frequency BLE updates.
 
+### useDebugStore
+
+| Field | Type | Purpose |
+|---|---|---|
+| `alertLog` | `string` | AlertEngine decisions — what it intended to announce |
+| `ttsLog` | `string` | TTS execution — VoxTTSEvent lifecycle from native module |
+| `lastAnnouncement` | `string` | Most recently spoken utterance string |
+| `packetLog` | `string` | Raw BLE packet log — hex bytes + parsed threats per notification (60-entry circular buffer, ~1 min at 1 Hz) |
+
+Isolated from `radarStore` so log updates never trigger the BLE subscription callback loop. Used by the bug reporter (`src/utils/bugReport.ts`) and the on-screen debug panel.
+
 ---
 
 ## BLE Protocol
@@ -147,16 +166,23 @@ Selector-based subscriptions prevent cascade re-renders from high-frequency BLE 
 **Battery service:** `0x180F` (standard BLE)
 **Battery characteristic:** `0x2A19` (standard BLE — uint8, 0–100%)
 
-Packet format:
+Packet format (verified against real hardware + pycycling source):
 ```
-Byte 0: [sequence_id: 4 bits][threat_count: 4 bits]
-Per threat (3 bytes):
-  Byte 0: speed (uint8 m/s)
-  Byte 1: distance (uint8 meters)
-  Byte 2: flags (bits 7–6 = threat level: 0=none, 1=medium, 2=high, 3=unknown)
+Byte 0: [rolling_counter: upper 4 bits][protocol_constant: lower 4 bits — always 0x2]
+Per threat (3 bytes each):
+  Byte 0: vehicleId  (uint8) — persistent ID per physical vehicle, constant across packets
+  Byte 1: distance   (uint8 meters) — decreases as vehicle approaches
+  Byte 2: speed      (uint8 km/h) — bits 7-6 = threat level (00=none,01=medium,10=high,11=unknown)
+
+Threat count = (packet_length - 1) / 3
+The lower nibble of byte 0 is NOT a threat count — it is always 0x2.
+No split packets — the Varia never fragments; the lower nibble is not a fragment counter.
 ```
 
-Split packets share a sequence ID. Reassembly timeout: 500ms.
+Canonical test vectors (RTL515 demo mode, 2025-04):
+- `82 A5 76 58 AE 89 44` → 2 threats
+- `82 AE 2B 44` → 1 threat
+- `82` → clear
 
 ---
 

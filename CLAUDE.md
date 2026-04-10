@@ -52,7 +52,29 @@ When asked to build and test on Android, always follow this workflow without ask
 
 - **Update rate:** 1 Hz — one packet per second regardless of threat state
 - **Detection range:** 140 m
-- **Protocol reference:** https://forums.garmin.com/developer/connect-iq/f/discussion/240452/bluetooth-profile-for-garmin-varia-rtl515
+- **Service UUID:** `6A4E3200-667B-11E3-949A-0800200C9A66`
+- **Radar characteristic:** `6A4E3203-667B-11E3-949A-0800200C9A66`
+
+### Packet format (empirically verified — RTL515 demo mode + pycycling source)
+
+```
+Byte 0:   [rolling_counter: upper 4 bits][0x2: lower 4 bits — always, NOT a count]
+Per threat (3 bytes, repeated):
+  Byte 0: vehicleId  uint8 — persistent per physical vehicle across packets
+  Byte 1: distance   uint8 meters — decreases as vehicle approaches
+  Byte 2: speed      uint8 km/h — bits 7-6 = level (00=none,01=medium,10=high,11=unknown)
+
+Threat count = (packet_length - 1) / 3
+```
+
+**Critical:** The lower nibble of byte 0 is always `0x2`. It is NOT a threat count. Never use it as one — doing so causes single-threat (4-byte) packets to be misclassified as fragments and silently dropped.
+
+**Canonical test vectors** (demo mode, 2025-04):
+- `82 A5 76 58 AE 89 44` → 2 threats: `{vId=0xA5,d=118m,s=88km/h,M}` `{vId=0xAE,d=137m,s=68km/h,M}`
+- `82 AE 2B 44` → 1 threat: `{vId=0xAE,d=43m,s=68km/h,M}`
+- `82` → clear
+
+**Sources:** Garmin forum (https://forums.garmin.com/developer/connect-iq/f/discussion/240452/bluetooth-profile-for-garmin-varia-rtl515), pycycling `rear_view_radar.py` (https://github.com/zacharyedwardbull/pycycling)
 
 ## Alert Logic
 

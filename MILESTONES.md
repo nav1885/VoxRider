@@ -74,17 +74,18 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
 ### Phase 1.1 — Packet Parser
 
 #### ✅ TASK-010: BLE packet parser
-- Implement `parseRadarPacket(bytes: Uint8Array): Threat[]`
+- Implement `parseRadarPacket(bytes: Uint8Array): RadarPacket | null`
 - Handle 1-byte idle packet (zero threats)
-- Decode per-threat: speed (raw `uint8` m/s), distance (raw `uint8` meters), threat level (bits 7–6 of flags byte) — parser outputs raw values only, unit conversion handled separately in `formatDistance()` / `formatSpeed()` utilities
-- Handle split packets: detect shared sequence ID (upper nibble of byte 0), reassemble up to 15 threats. **Timeout: 500ms** — discard partial reassembly if second packet not received within 500ms
+- Threat count derived from packet length only: `(length - 1) / 3`
+- Decode per-threat: `vehicleId` (byte 0, `uint8`), `distance` (byte 1, `uint8` meters), `speed` (byte 2, `uint8` km/h); threat level from bits 7–6 of speed byte
+- **No split packet handling** — the lower nibble of byte 0 is always `0x2` (protocol constant, not a count); the Varia never fragments packets. Prior split reassembly logic was a bug: it caused single-threat packets to be silently dropped.
 - **Test:** Unit tests covering:
-  - Single threat packet
-  - Multi-threat packet (up to 6)
-  - Split packet (>6 threats, shared sequence ID)
+  - Single threat packet — including regression that lower nibble=2 does not drop the packet
+  - Multi-threat packet
   - Idle/clear packet (1 byte)
+  - Canonical hardware captures (RTL515 demo mode test vectors)
   - Edge cases: max distance (255m), max speed, all threat levels
-- **Docs:** Inline documentation of byte format with reference to community spec
+- **Docs:** Inline documentation of byte format with reference to community spec and pycycling source
 
 #### ⏳ TASK-011: Battery level characteristic (needs native — Xcode/Android Studio)
 - **UUID resolved:** Standard BLE Battery Service `0x180F` / Battery Level characteristic `0x2A19` (full UUID `00002a19-0000-1000-8000-00805f9b34fb`). Format: `uint8`, 0–100 percentage. Supports notifications.
@@ -128,7 +129,7 @@ Each milestone delivers a working, tested vertical slice of the product. Each ta
 
 ### Phase 1.3 — Background Service
 
-#### ✅ TASK-015: Android foreground service (RadarService.kt written; battery opt dialog needs native run)
+#### ✅ TASK-015: Android foreground service
 - Implement Android foreground service wrapping BLE manager
 - Persistent notification: "VoxRider active" (IMPORTANCE_LOW — visible but not intrusive)
 - Declare `FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE` in manifest (required Android 14+)
@@ -459,7 +460,7 @@ Request the correct BLE permissions based on Android API level at runtime.
 
 ### Phase 6.1 — Reliability Testing
 
-#### TASK-060: Background reliability + battery drain testing
+#### ⏳ TASK-060: Background reliability + battery drain testing
 - Physical device test: run app, lock screen, ride for 30+ minutes
 - Verify BLE notifications continue through lock screen (iOS + Android)
 - Verify TTS alerts fire through earbuds during lock screen
