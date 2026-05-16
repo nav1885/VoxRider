@@ -76,7 +76,7 @@ export default function App(): React.JSX.Element {
 
   useEffect(() => {
     const init = async () => {
-      await ttsBackend.initialize();
+      try { await ttsBackend.initialize(); } catch {};
       await loadSettings();
       const {pairedDevices, voiceId} = useSettingsStore.getState();
       if (Platform.OS === 'android') {
