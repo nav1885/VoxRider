@@ -13,6 +13,9 @@ if (keystorePropertiesFile.exists()) {
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
 react {
+    // Treat all variants as non-debuggable so JS is always bundled (required for Detox)
+    debuggableVariants = []
+
     /* Folders */
     //   The root of your project, i.e. where "package.json" lives. Default is '../..'
     // root = file("../../")
@@ -90,6 +93,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 2
         versionName "1.1"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
         debug {
@@ -122,6 +126,10 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+
+    androidTestImplementation("com.wix:detox:+")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test:rules:1.5.0")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

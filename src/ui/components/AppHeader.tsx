@@ -171,7 +171,7 @@ export function AppHeader({connectionStatus, deviceName, batteryLevel}: Props): 
       {/* ── Center: logo (7-tap Easter egg unlocks debug mode) ── */}
       <View style={hSt.center}>
         <GestureDetector gesture={tap}>
-          <Image source={logo} style={hSt.logo} resizeMode="contain" />
+          <Image testID="header-wordmark" source={logo} style={hSt.logo} resizeMode="contain" />
         </GestureDetector>
       </View>
 

@@ -106,14 +106,14 @@ export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): Re
   const containerStyle = [styles.container, isDark && styles.containerDark];
 
   return (
-    <View style={containerStyle} testID="settings-panel">
-      <View style={[styles.header, {paddingTop: insets.top + 12}]}>
+    <View style={containerStyle}>
+      <View style={[styles.header, {paddingTop: insets.top + 12}]} testID="settings-panel">
         <TouchableOpacity testID="settings-close" onPress={onClose}>
           <Text style={[styles.closeButton, isDark && styles.textDark]}>✕</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.content, {paddingBottom: insets.bottom + 40}]}>
+      <ScrollView testID="settings-scroll" contentContainerStyle={[styles.content, {paddingBottom: insets.bottom + 40}]}>
         {/* Alert Verbosity */}
         <Text style={labelStyle}>{Strings.settingsVerbosity}</Text>
         <View style={styles.segmentRow} testID="verbosity-control">
