@@ -53,9 +53,11 @@ export function PairingStep1({onSearch, onSkip}: Props): React.JSX.Element {
             <Text style={styles.buttonText}>{Strings.pairingStep1Button}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity testID="debug-skip-button" onPress={onSkip}>
-            <Text style={[styles.skipLabel, isDark && styles.textDark]}>Skip (debug)</Text>
-          </TouchableOpacity>
+          {debugMode && (
+            <TouchableOpacity testID="debug-skip-button" onPress={onSkip}>
+              <Text style={[styles.skipLabel, isDark && styles.textDark]}>Skip (debug)</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </View>

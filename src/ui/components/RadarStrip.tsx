@@ -13,7 +13,10 @@ const COLORS = {
   high: {light: '#EF4444', dark: '#DC2626'},
 };
 
-function stripColor(maxLevel: ThreatLevel, isDark: boolean): string {
+function stripColor(maxLevel: ThreatLevel, isDark: boolean, hasThreats: boolean): string {
+  if (!hasThreats) {
+    return 'transparent';
+  }
   const scheme = isDark ? 'dark' : 'light';
   switch (maxLevel) {
     case ThreatLevel.High:
@@ -37,7 +40,7 @@ export function RadarStrip({threats, position, height}: Props): React.JSX.Elemen
   const screenHeight = height ?? Dimensions.get('window').height;
 
   const maxLevel = useMemo(() => getMaxThreatLevel(threats), [threats]);
-  const bgColor = stripColor(maxLevel, isDark);
+  const bgColor = stripColor(maxLevel, isDark, threats.length > 0);
 
   // Sort closest first (ascending distance), then map to vertical positions
   const sortedThreats = useMemo(

@@ -1,9 +1,9 @@
 import {by, device, element, expect, waitFor} from 'detox';
-import {launchFresh, skipToMainScreen} from './helpers';
+import {launchFreshAtPairing, skipPairingToMain} from './helpers';
 
 describe('Pairing Flow', () => {
   beforeEach(async () => {
-    await launchFresh();
+    await launchFreshAtPairing();
   });
 
   afterEach(async () => {
@@ -33,7 +33,7 @@ describe('Pairing Flow', () => {
 
   // Skip button (debug path) navigates directly to main screen
   it('Skip (debug) bypasses pairing and shows main screen', async () => {
-    await skipToMainScreen();
+    await skipPairingToMain();
     await expect(element(by.id('main-screen'))).toBeVisible();
   });
 });

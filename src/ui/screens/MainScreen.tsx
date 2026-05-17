@@ -17,7 +17,6 @@ import {useDebugStore} from '../../debug/debugStore';
 import {ConnectionStatus, ThreatLevel} from '../../ble/types';
 import {getMaxThreatLevel} from '../../ble/parseRadarPacket';
 import {RoadView} from '../components/RoadView';
-import {RadarStrip} from '../components/RadarStrip';
 import {Strings} from '../../constants/strings';
 import {DebugSimulator} from '../../debug/DebugSimulator';
 import {AppHeader} from '../components/AppHeader';
@@ -40,7 +39,6 @@ export function MainScreen({onSwipeLeft, onTestAlert}: Props): React.JSX.Element
   const consecutiveFailures = useRadarStore(s => s.consecutiveFailures);
 
   const debugMode = useSettingsStore(s => s.debugMode);
-  const sidebarPosition = useSettingsStore(s => s.sidebarPosition);
   const trafficMode = useSettingsStore(s => s.trafficMode);
   const lastAnnouncement = useDebugStore(s => s.lastAnnouncement);
   const alertLog = useDebugStore(s => s.alertLog);
@@ -223,9 +221,6 @@ export function MainScreen({onSwipeLeft, onTestAlert}: Props): React.JSX.Element
           )}
 
         </View>
-
-        {/* ── Radar sidebar strip (absolute overlay) ── */}
-        <RadarStrip threats={threats} position={sidebarPosition} />
 
       </View>
     </GestureDetector>

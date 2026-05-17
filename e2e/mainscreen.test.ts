@@ -21,11 +21,6 @@ describe('Main Screen', () => {
     await expect(element(by.id('connection-status'))).toBeVisible();
   });
 
-  // IOS-E2E-012 / UI-MAIN-003
-  it('shows radar strip', async () => {
-    await expect(element(by.id('radar-strip'))).toBeVisible();
-  });
-
   // IOS-E2E-013 / UI-MAIN-004 — Test Alert button (REQ-VIS-003)
   it('Test Alert button is visible and tappable', async () => {
     await expect(element(by.id('test-alert-button'))).toBeVisible();
