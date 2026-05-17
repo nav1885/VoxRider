@@ -317,7 +317,7 @@ Clear announced as *"Clear"* across all verbosity levels — only spoken after a
 | Paired devices | List, remove, add | — | Both |
 | Report a Bug | Opens pre-filled GitHub issue in browser | — | Both |
 
-**Debug mode** is not a visible settings control. It is unlocked via a hidden Easter egg: tap the VOXRIDER wordmark in the app header 7 times within 4 seconds. Once unlocked a `·DEV·` badge appears and the simulator + diagnostic log panel become available on the main screen. State persists across restarts. See REQ-DEV-001.
+**Debug mode** is not a visible settings control. It is unlocked via a hidden Easter egg: tap the VOXRIDER wordmark in the app header 7 times within 8 seconds. Once unlocked a `·DEV·` badge appears and the simulator + diagnostic log panel become available on the main screen. State persists across restarts. See REQ-DEV-001.
 
 **Paired Devices:**
 - Lists all paired Varia devices by friendly name + raw ID
@@ -445,6 +445,6 @@ BLE packet received (~200ms)
 ## 14. UI Constraints
 
 - **Orientation:** Portrait only. Locked in native config on both platforms.
-- **Colour scheme:** Light and dark mode both supported. App follows system preference. Dark mode saves battery on OLED screens — important for a ride app.
+- **Colour scheme:** Dark mode only. `Appearance.setColorScheme('dark')` is set at app root — all screens use dark styles regardless of system preference. Dark mode saves battery on OLED screens — important for a ride app.
 - **App icon:** Required for device install. Created as part of M0 (TASK-003).
 - **Splash screen:** Minimal — React Native default or solid colour. Not a design priority for v1.

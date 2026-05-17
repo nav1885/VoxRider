@@ -13,12 +13,14 @@ interface SettingsState {
   debugMode: boolean;
   trafficMode: TrafficMode;
   voiceId: string | null;
+  sidebarPosition: 'left' | 'right';
 
   setVerbosity: (v: AlertVerbosity) => void;
   setUnits: (u: Units) => void;
   setDebugMode: (on: boolean) => void;
   setTrafficMode: (mode: TrafficMode) => void;
   setVoiceId: (id: string | null) => void;
+  setSidebarPosition: (pos: 'left' | 'right') => void;
   addPairedDevice: (device: DeviceInfo) => void;
   removePairedDevice: (deviceId: string) => void;
   updateLastConnected: (deviceId: string) => void;
@@ -33,6 +35,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   debugMode: false,
   trafficMode: 'quiet', // debug-only — intentionally not persisted, resets to quiet on restart
   voiceId: null,
+  sidebarPosition: 'left',
 
   setDebugMode: on => {
     set({debugMode: on});
@@ -51,6 +54,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   setVoiceId: id => {
     set({voiceId: id});
+    get()._persist();
+  },
+  setSidebarPosition: pos => {
+    set({sidebarPosition: pos});
     get()._persist();
   },
   addPairedDevice: device => {
@@ -85,6 +92,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           pairedDevices: saved.pairedDevices ?? [],
           voiceId: saved.voiceId ?? null,
           debugMode: saved.debugMode ?? false,
+          sidebarPosition: saved.sidebarPosition ?? 'left',
         });
       }
     } catch {}
@@ -92,10 +100,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   _persist: async () => {
     try {
-      const {verbosity, units, pairedDevices, voiceId, debugMode} = get();
+      const {verbosity, units, pairedDevices, voiceId, debugMode, sidebarPosition} = get();
       await AsyncStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({verbosity, units, pairedDevices, voiceId, debugMode}),
+        JSON.stringify({verbosity, units, pairedDevices, voiceId, debugMode, sidebarPosition}),
       );
     } catch {}
   },

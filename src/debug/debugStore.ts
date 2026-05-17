@@ -10,9 +10,9 @@ function ts(): string {
 
 function append(log: string, line: string, max = MAX_LOG_LINES): string {
   const lines = log ? log.split('\n') : [];
-  lines.push(`${ts()}  ${line}`);
+  lines.unshift(`${ts()}  ${line}`);
   if (lines.length > max) {
-    lines.splice(0, lines.length - max);
+    lines.splice(max);
   }
   return lines.join('\n');
 }

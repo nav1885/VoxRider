@@ -1,6 +1,8 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {
   Animated,
+  Dimensions,
+  ScrollView,
   View,
   Text,
   TouchableOpacity,
@@ -15,6 +17,7 @@ import {useDebugStore} from '../../debug/debugStore';
 import {ConnectionStatus, ThreatLevel} from '../../ble/types';
 import {getMaxThreatLevel} from '../../ble/parseRadarPacket';
 import {RoadView} from '../components/RoadView';
+import {RadarStrip} from '../components/RadarStrip';
 import {Strings} from '../../constants/strings';
 import {DebugSimulator} from '../../debug/DebugSimulator';
 import {AppHeader} from '../components/AppHeader';
@@ -23,9 +26,10 @@ const BANNER_AUTO_DISMISS_MS = 5000;
 
 interface Props {
   onSwipeLeft?: () => void;
+  onTestAlert?: () => void;
 }
 
-export function MainScreen({onSwipeLeft}: Props): React.JSX.Element {
+export function MainScreen({onSwipeLeft, onTestAlert}: Props): React.JSX.Element {
   const isDark = useColorScheme() === 'dark';
   const insets = useSafeAreaInsets();
 
@@ -36,6 +40,7 @@ export function MainScreen({onSwipeLeft}: Props): React.JSX.Element {
   const consecutiveFailures = useRadarStore(s => s.consecutiveFailures);
 
   const debugMode = useSettingsStore(s => s.debugMode);
+  const sidebarPosition = useSettingsStore(s => s.sidebarPosition);
   const trafficMode = useSettingsStore(s => s.trafficMode);
   const lastAnnouncement = useDebugStore(s => s.lastAnnouncement);
   const alertLog = useDebugStore(s => s.alertLog);
@@ -176,15 +181,15 @@ export function MainScreen({onSwipeLeft}: Props): React.JSX.Element {
 
               {/* ── Dual log: ALG left, TTS right ── */}
               <View style={styles.logRow}>
-                <View style={styles.logCol}>
+                <ScrollView style={styles.logCol} nestedScrollEnabled>
                   <Text style={styles.logHeader}>ALG</Text>
                   <Text style={styles.logText}>{alertLog}</Text>
-                </View>
+                </ScrollView>
                 <View style={styles.logDivider} />
-                <View style={styles.logCol}>
+                <ScrollView style={styles.logCol} nestedScrollEnabled>
                   <Text style={styles.logHeader}>TTS</Text>
                   <Text style={styles.logText}>{ttsLog}</Text>
-                </View>
+                </ScrollView>
               </View>
 
               <TouchableOpacity
@@ -207,7 +212,21 @@ export function MainScreen({onSwipeLeft}: Props): React.JSX.Element {
             </View>
           )}
 
+          {/* ── Test Alert button ── */}
+          {!debugMode && (
+            <TouchableOpacity
+              testID="test-alert-button"
+              style={styles.testAlertButton}
+              onPress={onTestAlert}>
+              <Text style={styles.testAlertText}>Test Alert</Text>
+            </TouchableOpacity>
+          )}
+
         </View>
+
+        {/* ── Radar sidebar strip (absolute overlay) ── */}
+        <RadarStrip threats={threats} position={sidebarPosition} />
+
       </View>
     </GestureDetector>
   );
@@ -259,11 +278,27 @@ const styles = StyleSheet.create({
   },
   conflictText: {fontSize: 12, color: '#92400E'},
 
+  // ── Test Alert ──
+  testAlertButton: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+    backgroundColor: '#374151',
+  },
+  testAlertText: {color: '#FFFFFF', fontSize: 16, fontWeight: '600'},
+
   // ── Debug ──
-  debugSection: {marginTop: 10, gap: 6, paddingHorizontal: 20},
+  debugSection: {
+    height: Dimensions.get('window').height * 0.3,
+    paddingHorizontal: 20,
+    paddingTop: 6,
+    gap: 4,
+  },
   debugAnnounced: {color: '#6B7280', fontSize: 12, textAlign: 'center'},
-  logRow: {flexDirection: 'row', gap: 4},
-  logCol: {flex: 1, minHeight: 80},
+  logRow: {flex: 1, flexDirection: 'row', gap: 4},
+  logCol: {flex: 1},
   logDivider: {width: 1, backgroundColor: '#374151'},
   logHeader: {color: '#6B7280', fontSize: 9, fontWeight: '700', marginBottom: 2},
   logText: {color: '#9CA3AF', fontSize: 9, fontFamily: 'monospace'},

@@ -3,7 +3,7 @@ import {NativeModules, NativeEventEmitter, Platform} from 'react-native';
 import {ITTSBackend} from './TTSEngine';
 import {useDebugStore} from '../debug/debugStore';
 
-const {VoxTTS} = NativeModules;
+const {VoxTTS, TextToSpeech: NativeTTS} = NativeModules;
 
 /**
  * NativeTTSBackend — production TTS for VoxRider.
@@ -64,7 +64,9 @@ export class NativeTTSBackend implements ITTSBackend {
     if (Platform.OS === 'android') {
       VoxTTS?.speak(utterance);
     } else {
-      Tts.stop();
+      // iOS: speak() interrupts any current utterance naturally.
+      // Calling stop() via TurboModules crashes (react-native-tts 4.1.1
+      // passes a null resolve callback through the new arch bridge).
       Tts.speak(utterance);
     }
   }
@@ -75,8 +77,8 @@ export class NativeTTSBackend implements ITTSBackend {
     this.pendingOnFinished = null;
     if (Platform.OS === 'android') {
       VoxTTS?.stop();
-    } else {
-      Tts.stop();
     }
+    // iOS: no-op — utterance finishes naturally; TTSEngine watchdog covers
+    // the edge case where it never completes.
   }
 }
