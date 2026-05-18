@@ -53,8 +53,6 @@ export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): Re
   const setTrafficMode = useSettingsStore(s => s.setTrafficMode);
   const voiceId = useSettingsStore(s => s.voiceId);
   const setVoiceId = useSettingsStore(s => s.setVoiceId);
-  const sidebarPosition = useSettingsStore(s => s.sidebarPosition);
-  const setSidebarPosition = useSettingsStore(s => s.setSidebarPosition);
 
   const [voiceSlots, setVoiceSlots] = useState<VoiceSlot[]>([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -171,22 +169,6 @@ export function SettingsPanel({onClose, onAddDevice, onRemoveDevice}: Props): Re
             </TouchableOpacity>
           </>
         )}
-
-        {/* Sidebar Position */}
-        <Text style={[labelStyle, styles.sectionSpacing]}>RADAR SIDEBAR</Text>
-        <View style={styles.segmentRow}>
-          {(['left', 'right'] as const).map(pos => (
-            <TouchableOpacity
-              key={pos}
-              testID={`sidebar-${pos}`}
-              style={[styles.segment, sidebarPosition === pos && styles.segmentActive]}
-              onPress={() => setSidebarPosition(pos)}>
-              <Text style={[styles.segmentText, sidebarPosition === pos && styles.segmentTextActive]}>
-                {pos === 'left' ? 'Left' : 'Right'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
 
         {/* Paired Devices */}
         <Text style={[labelStyle, styles.sectionSpacing]}>{Strings.settingsPairedDevices}</Text>

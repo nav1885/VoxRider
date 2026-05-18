@@ -116,7 +116,7 @@ Fenix 8     (ANT+) ←→ Varia RTL515   [unaffected, separate radio]
 │  │  UI Layer    │    │   Background Service      │   │
 │  │              │    │  (Android Foreground /    │   │
 │  │  MainScreen  │◄───│   iOS Background BLE)     │   │
-│  │  RadarStrip  │    │                           │   │
+│  │  RoadView    │    │                           │   │
 │  │  Settings    │    │  ┌─────────────────────┐  │   │
 │  └──────────────┘    │  │   BLE Manager       │  │   │
 │                      │  │  (react-native-     │  │   │
@@ -216,55 +216,41 @@ BLE drops must be recovered automatically and persistently for the full ride dur
 
 ### 8.2 Visual Display
 
-#### Radar sidebar strip (REQ-VIS-001)
-Narrow vertical strip, full screen height. Updates directly from raw BLE packets (~200ms). No throttling on visual layer.
+#### Road view (REQ-VIS-001)
+Full-screen road-perspective view. Updates directly from raw BLE packets (~200ms). No throttling on visual layer.
 
-```
-  [close] ─ top
-      │
-      │  ●  ← red icon (high speed, 40m)
-      │
-      │
-      │  ●  ← orange icon (medium speed, 120m)
-      │
-  [far] ─ bottom
-```
+| State | Dark mode | Icons |
+|---|---|---|
+| No threats | green background | None |
+| Medium speed | `#EA6B0D` (orange) | Car icon at distance position |
+| High speed | `#DC2626` (red) | Car icon at distance position |
+| Unknown level | `#EA6B0D` (orange) | Car icon (conservative) |
 
-| State | Light mode | Dark mode | Icons |
-|---|---|---|---|
-| No threats | `#22C55E` (green) | `#16A34A` (green) | None |
-| Medium speed | `#F97316` (orange) | `#EA6B0D` (orange) | Car icon at distance position |
-| High speed | `#EF4444` (red) | `#DC2626` (red) | Car icon at distance position |
-| Unknown level | `#F97316` (orange) | `#EA6B0D` (orange) | Car icon (conservative) |
-
-Car icons: white (`#FFFFFF`) in both light and dark mode.
+Car icons: white (`#FFFFFF`).
 
 - Full 255m range displayed
 - No numeric labels — position conveys distance
 - Multiple vehicles: each at their own position, stacked if distances are very close
-- Sidebar position: Left (default) or Right (user setting)
 
 #### Main screen layout (REQ-VIS-003)
-Single screen. Sidebar + main area.
+Single screen.
 
 ```
-┌──────────────────────────────┬───┐
-│  ● Connected · Varia Radar   │   │
-│                              │   │
-│                              │ ↑ │
-│         2 vehicles           │ ● │
-│            40ft              │   │
-│                              │ ● │
-│      Varia battery ████░     │ ↑ │
-│                              │   │
-│        [ Test Alert ]        │   │
-└──────────────────────────────┴───┘
+┌──────────────────────────────────┐
+│  ● Connected · Varia Radar       │
+│                                  │
+│                                  │
+│         2 vehicles               │
+│            40ft                  │
+│                                  │
+│      Varia battery ████░         │
+│                                  │
+└──────────────────────────────────┘
 ```
 
 - **Connection status** — top, always visible
 - **Live threat state** — center, large: "Clear" (green) or vehicle count + closest distance
 - **Varia battery** — subtle, below threat state
-- **Test Alert** — bottom, fires a sample TTS to verify earbuds before riding
 - **Settings** — swipe left gesture, no icon on screen
 
 ---
@@ -433,7 +419,7 @@ BLE packet received (~200ms)
 ## 12. Open Questions
 
 - ~~Battery level characteristic UUID~~ — **Resolved:** Standard BLE Battery Service `0x180F` / Battery Level characteristic `0x2A19` (full UUID `00002a19-0000-1000-8000-00805f9b34fb`). Returns `uint8` 0–100 percentage. Supports notifications. Confidence: high (harbour-tacho BlueZ Battery1 confirms device implements standard service). **Verify with nRF Connect on physical device before shipping.**
-- ~~State management library~~ — **Resolved:** Zustand. Two stores: `useRadarStore` (high-frequency BLE data — threats, connection status, battery level) and `useSettingsStore` (low-frequency persisted settings — sidebar position, verbosity, units, paired devices). Zustand's selector-based subscriptions prevent cascade re-renders from 100–300ms BLE updates. Pure JS, no native modules — works identically on Android and iOS.
+- ~~State management library~~ — **Resolved:** Zustand. Two stores: `useRadarStore` (high-frequency BLE data — threats, connection status, battery level) and `useSettingsStore` (low-frequency persisted settings — verbosity, units, paired devices). Zustand's selector-based subscriptions prevent cascade re-renders from 100–300ms BLE updates. Pure JS, no native modules — works identically on Android and iOS.
 
 ## 13. Platform Minimums
 

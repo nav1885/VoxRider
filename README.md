@@ -7,7 +7,6 @@ React Native app that connects to a Garmin Varia RTL515 bike radar via Bluetooth
 ## What it does
 
 - Scans for and pairs with a Garmin Varia RTL515 radar
-- Displays approaching vehicles on a visual sidebar strip (Wahoo-style, full screen height)
 - Announces threats via TTS: *"2 vehicles, high speed"* / *"Clear"*
 - Auto-reconnects on disconnect, announces *"Radar disconnected"* / *"Radar reconnected"*
 - Works in the background (screen locked, app backgrounded) via Android foreground service + iOS background BLE
@@ -63,7 +62,6 @@ npm test
 - Connection alert engine — disconnect/reconnect/backoff (12 tests)
 - Alert message builder — verbosity levels (9 tests)
 - End-to-end alert pipeline integration (5 tests)
-- RadarStrip component (8 tests)
 - MainScreen component (13 tests)
 - SettingsPanel component (10 tests)
 - PairingStep1 + PairingStep2 screens (10 tests)
@@ -92,7 +90,7 @@ Key files:
 | `src/settings/settingsStore.ts` | Zustand + AsyncStorage for persisted settings |
 | `src/permissions/useBluetoothPermission.ts` | BLE permission request by Android API level |
 | `src/ui/screens/MainScreen.tsx` | Radar strip + threat state + battery bar |
-| `src/ui/screens/SettingsPanel.tsx` | Verbosity / units / sidebar / paired devices |
+| `src/ui/screens/SettingsPanel.tsx` | Verbosity / units / paired devices |
 | `src/ui/screens/PairingStep1.tsx` | Turn on Varia — step 1 of pairing |
 | `src/ui/screens/PairingStep2.tsx` | Scan + connect — step 2 of pairing |
 | `android/app/src/main/java/com/voxrider/RadarService.kt` | Android foreground service |

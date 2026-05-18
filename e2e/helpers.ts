@@ -34,7 +34,6 @@ function makeSettings(pairedDevices: object[], debugMode: boolean): string {
     pairedDevices,
     voiceId: null,
     debugMode,
-    sidebarPosition: 'left',
   });
 }
 

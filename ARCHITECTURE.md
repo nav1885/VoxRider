@@ -16,7 +16,7 @@ src/
   alerts/       Connection alert engine, message builder, TTS backend, types
   ui/
     screens/    PairingStep1, PairingStep2, Main, Settings
-    components/ RadarStrip
+    components/ AppHeader, RoadView, threat banner
   settings/     Settings Zustand store, formatDistance, types
   debug/        DebugSimulator — burst-based threat simulation for on-device testing
   constants/    strings.ts — all user-facing strings
@@ -39,7 +39,7 @@ RealBLEManager (react-native-ble-plx)
     ▼
 parseRadarPacket() → Threat[]
     │
-    ├──► useRadarStore (Zustand) ──► RadarStrip (visual, ~200ms)
+    ├──► useRadarStore (Zustand) ──► RoadView (visual, ~200ms)
     │
     └──► useRadarStore.subscribe() [App.tsx module level]
               │
@@ -138,7 +138,6 @@ Alert message format (via `buildAlertMessage()`):
 
 | Field | Type | Persisted | Purpose |
 |---|---|---|---|
-| `sidebarPosition` | `'left' \| 'right'` | Yes | RadarStrip placement |
 | `verbosity` | `AlertVerbosity` | Yes | TTS announcement detail level |
 | `units` | `'imperial' \| 'metric'` | Yes | Distance display |
 | `pairedDevices` | `DeviceInfo[]` | Yes | Saved Varia devices |

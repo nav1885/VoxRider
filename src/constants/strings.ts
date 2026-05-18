@@ -65,9 +65,6 @@ export const Strings = {
     "VoxRider needs Bluetooth access to connect to your Varia radar. On older Android versions this also requires location permission — your location is never stored or shared.",
 
   // Settings
-  settingsSidebarPosition: 'Sidebar Position',
-  settingsSidebarLeft: 'Left',
-  settingsSidebarRight: 'Right',
   settingsVerbosity: 'Alert Verbosity',
   settingsVerbosityDetailed: 'Detailed',
   settingsVerbosityBalanced: 'Balanced',

@@ -16,10 +16,8 @@ The following mismatches exist between SPEC.md and the shipped code. Tests in th
 |---|---|---|
 | D-1 | Debug Easter egg: 7 taps within **4 seconds** | `DEBUG_TAP_WINDOW_MS = 8000` (8 s window). Code also supports a 5-tap **off** path not mentioned in SPEC. |
 | D-2 | Default alert verbosity: **Detailed** (§8.4) | `settingsStore.ts` initialises to `AlertVerbosity.Minimal`. |
-| D-3 | Settings exposes **sidebar position** (Left/Right) (§8.4) | `SettingsPanel.tsx` does not render this control. `MainScreen.tsx` uses `RoadView`, not `RadarStrip`. `RadarStrip` is an isolated component not mounted in the current main screen tree. No sidebar-position control tests are written. |
 | D-4 | TTS watchdog: **6 s** (§8.3 implied by CLAUDE.md) | `TTSEngine.ts` comment says "10 s watchdog" but `WATCHDOG_MS = 6000`. Tests use 6 s. |
 | D-5 | REQ-DEV-001, REQ-VIS-002, REQ-VIS-004 | Cited in code comments but not defined in SPEC v1.0. Tests reference them as `(REQ-DEV-001 — referenced in code, undefined in SPEC v1.0)`. |
-| D-6 | **Test Alert button** on main screen (REQ-VIS-003, §8.2) | `MainScreen.tsx` does not render a Test Alert button. `speakImmediate()` exists on `TTSEngine` but is not wired to any visible UI element. IOS-E2E-034 is classified as a spec gap. |
 | D-7 | Scan timeout: 30 s shown to user | `RealBLEManager.SCAN_DURATION_MS = 10000` — BLE scan resolves at 10 s with empty results, immediately setting scan state to `timeout`. The 30 s UI timer in `PairingStep2` is a fallback for the case where the BLE manager promise never resolves. Practical UX timeout is ~10 s. IOS-E2E-003 tests the 30 s fallback path; the 10 s fast-path is noted. |
 
 ---
@@ -841,7 +839,7 @@ The following mismatches exist between SPEC.md and the shipped code. Tests in th
 #### IOS-E2E-008 — Main screen shows "Clear" state when no threats
 **Automation:** Detox  
 **REQ:** REQ-VIS-003  
-**Note:** The main screen renders `<RoadView>` (not `<RadarStrip>`). Car elements have `testID="road-car-N"` inside `testID="road-view"`.  
+**Note:** The main screen renders `<RoadView>`. Car elements have `testID="road-car-N"` inside `testID="road-view"`.  
 **Preconditions:** App connected, radarStore.threats=[].  
 **Steps:**
 1. Assert `testID="main-screen"` visible.
@@ -1132,70 +1130,6 @@ The following mismatches exist between SPEC.md and the shipped code. Tests in th
 
 ## 7. UI / E2E Tests — Threat Display
 
-> **Note (D-3):** `MainScreen.tsx` renders `<RoadView>`, not `<RadarStrip>`. `RadarStrip` is an isolated component (not currently mounted in the main screen). Tests IOS-E2E-028..032 are component-level tests of `RadarStrip` in isolation. Tests IOS-E2E-033..034 cover the `RoadView` and banner that actually appear in the app.
-
-#### IOS-E2E-028 — RadarStrip component: green when no threats (isolation test)
-**Automation:** Jest (component)  
-**REQ:** REQ-VIS-001  
-**Note:** `RadarStrip` is not mounted in `MainScreen` (see D-3). This tests the component contract in isolation.  
-**Steps:**
-1. Render `<RadarStrip threats={[]} position="left" height={800} />` with `useColorScheme` mocked to `'dark'`.
-2. Assert `testID="radar-strip"` has `backgroundColor="#16A34A"` (dark green).
-
-**Pass:** Green strip with no threats.  
-**Fail:** Any other colour.
-
----
-
-#### IOS-E2E-029 — RadarStrip component: orange for medium speed threats
-**Automation:** Jest (component)  
-**REQ:** REQ-VIS-001  
-**Steps:**
-1. Render `<RadarStrip threats={[{level:Medium, distance:100, speed:0x44}]} position="left" height={800} />` with dark mode mocked.
-2. Assert `testID="radar-strip"` has `backgroundColor="#EA6B0D"` (dark orange).
-
-**Pass:** Orange strip for medium threat.  
-**Fail:** Wrong colour.
-
----
-
-#### IOS-E2E-030 — RadarStrip component: red for high speed threats
-**Automation:** Jest (component)  
-**REQ:** REQ-VIS-001  
-**Steps:**
-1. Render with `level:High` threat in dark mode.
-2. Assert `backgroundColor="#DC2626"` (dark red).
-
-**Pass:** Red strip.  
-**Fail:** Wrong colour.
-
----
-
-#### IOS-E2E-031 — RadarStrip component: car icon position represents distance (close=top, far=bottom)
-**Automation:** Jest (component)  
-**REQ:** REQ-VIS-001  
-**Steps:**
-1. Render with two threats: `{distance:10, level:Medium}` (close) and `{distance:200, level:Medium}` (far) with `height=800`.
-2. Assert `testID="car-icon-0"` (closest, sorted ascending) has a smaller `top` value than `testID="car-icon-1"` (farthest).
-3. Specifically: close at 10m → `top ≈ (10/255)*800 ≈ 31px`; far at 200m → `top ≈ 627px`.
-
-**Pass:** Close vehicle renders near top; far vehicle near bottom.  
-**Fail:** Inverted positions.
-
----
-
-#### IOS-E2E-032 — RadarStrip component: all car icons rendered for multiple vehicles
-**Automation:** Jest (component)  
-**REQ:** REQ-VIS-001  
-**Steps:**
-1. Render with 3 threats at distances 30, 80, 140.
-2. Assert `testID="car-icon-0"`, `"car-icon-1"`, `"car-icon-2"` all exist.
-
-**Pass:** Three car icons rendered.  
-**Fail:** Any icon missing.
-
----
-
 #### IOS-E2E-032b — RoadView: car elements appear for each threat
 **Automation:** Jest (component)  
 **REQ:** REQ-VIS-001  
@@ -1238,20 +1172,6 @@ The following mismatches exist between SPEC.md and the shipped code. Tests in th
 ---
 
 ## 8. UI / E2E Tests — Audio Alerts
-
-#### IOS-E2E-034 — Test Alert fires TTS (SPEC GAP)
-**Automation:** N/A  
-**REQ:** REQ-VIS-003 ("Test Alert — fires a sample TTS to verify earbuds before riding")  
-**Note (D-6):** `MainScreen.tsx` does not render a "Test Alert" button in the current codebase. `TTSEngine.speakImmediate()` exists but is not wired to any visible UI control. This test cannot be executed until the feature is implemented.  
-**When implemented, expected steps:**
-1. Navigate to main screen.
-2. Tap "Test Alert" button.
-3. Assert audible TTS plays a sample alert through earbuds.
-4. Assert no crash.
-
-**Status:** Blocked — feature not implemented (D-6). Track as a known gap against SPEC REQ-VIS-003.
-
----
 
 #### IOS-E2E-035 — Alert not spoken when already speaking (drop behaviour)
 **Automation:** Jest  
@@ -1413,7 +1333,7 @@ The following mismatches exist between SPEC.md and the shipped code. Tests in th
 
 #### IOS-PLAT-004 — speakImmediate() during ongoing utterance plays new message without crash
 **Automation:** Manual / Jest (mock backend)  
-**REQ:** REQ-VIS-003 ("Test Alert"); CLAUDE.md TTS iOS notes  
+**REQ:** CLAUDE.md TTS iOS notes  
 **Note:** On iOS, `stop()` is a no-op. `speakImmediate` sets `speaking=false`, clears watchdog, sets `speaking=true`, and calls `speak()` — the native layer handles interruption.  
 **Steps (Jest):**
 1. `TTSEngine.speakImmediate("test one")` — speaking becomes true.
@@ -1424,7 +1344,7 @@ The following mismatches exist between SPEC.md and the shipped code. Tests in th
 
 **Steps (Manual):**
 1. Begin speaking a long utterance.
-2. Tap "Test Alert" immediately.
+2. Trigger `speakImmediate` again immediately (e.g. via debug simulator).
 3. Assert "test two" utterance plays; no crash; no double utterance.
 
 **Pass:** New utterance plays; no crash.  
@@ -1504,7 +1424,7 @@ The following mismatches exist between SPEC.md and the shipped code. Tests in th
 4. Wait 30 minutes.
 5. Unlock and bring app to foreground.
 6. Assert connection status = Connected.
-7. Assert threats still updating in RadarStrip.
+7. Assert threats still updating in the road view.
 
 **Pass:** Connection maintained for 30 minutes in background.  
 **Fail:** Status shows Disconnected; reconnect TTS plays indicating drop.
@@ -1573,20 +1493,6 @@ The following mismatches exist between SPEC.md and the shipped code. Tests in th
 
 ---
 
-#### IOS-PLAT-014 — RadarStrip uses dark-mode colour palette
-**Automation:** Jest (component with mocked useColorScheme returning 'light')
-**REQ:** REQ-VIS-001  
-**Note:** App forces dark regardless, but the RadarStrip reads `useColorScheme`. Since `Appearance.setColorScheme('dark')` is set at root, the hook should return 'dark' even if system is light.  
-**Steps:**
-1. Mock `useColorScheme` to return `'dark'` (as the App root forces).
-2. Render `<RadarStrip threats={[{level:Medium,...}]} position="left" height={800} />`.
-3. Assert `backgroundColor="#EA6B0D"` (dark orange, not `#F97316` light orange).
-
-**Pass:** Dark colour values used.  
-**Fail:** Light palette colours used.
-
----
-
 #### IOS-PLAT-015 — Portrait-only orientation enforced
 **Automation:** Manual  
 **REQ:** SPEC §14 ("Portrait only. Locked in native config on both platforms.")  
@@ -1617,7 +1523,6 @@ The following mismatches exist between SPEC.md and the shipped code. Tests in th
 | Main screen | IOS-E2E-008..013 | Detox |
 | Settings panel | IOS-E2E-014..021 | Detox / Manual |
 | Debug Easter egg | IOS-E2E-022..027 | Detox |
-| Threat display (RadarStrip component) | IOS-E2E-028..032 | Jest |
 | Threat display (RoadView component) | IOS-E2E-032b..032c | Jest |
 | Threat banner | IOS-E2E-033 | Jest / Detox |
 | Audio alerts | IOS-E2E-034..039 | Jest / Manual |
@@ -1650,7 +1555,6 @@ The following mismatches exist between SPEC.md and the shipped code. Tests in th
 | `src/ui/screens/SettingsPanel.tsx` | IOS-E2E-014..021 |
 | `src/ui/components/AppHeader.tsx` | IOS-E2E-010..011, IOS-E2E-022..024 |
 | `src/ui/components/DebugWordmark.tsx` | IOS-E2E-026 |
-| `src/ui/components/RadarStrip.tsx` | IOS-E2E-028..032, IOS-PLAT-014 |
 | `src/ui/components/RoadView.tsx` | IOS-E2E-032b..032c, IOS-E2E-008 |
 | `src/settings/settingsStore.ts` | IOS-E2E-014..015, IOS-E2E-022 |
 | `src/utils/bugReport.ts` | IOS-E2E-020 |

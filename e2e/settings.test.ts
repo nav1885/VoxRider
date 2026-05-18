@@ -29,12 +29,6 @@ describe('Settings Panel', () => {
     await waitFor(element(by.id('units-metric'))).toBeVisible().withTimeout(3000);
   });
 
-  // UI-SET-003 — Sidebar position toggle
-  it('shows sidebar position control with Left and Right', async () => {
-    await expect(element(by.id('sidebar-left'))).toBeVisible();
-    await expect(element(by.id('sidebar-right'))).toBeVisible();
-  });
-
   // UI-SET-004
   it('close button returns to main screen', async () => {
     await element(by.id('settings-close')).tap();
