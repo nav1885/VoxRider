@@ -12,6 +12,7 @@ import {Strings} from '../../constants/strings';
 import {DebugWordmark} from '../components/DebugWordmark';
 
 const logo = require('../../assets/logo.png');
+const variaImage = require('../../assets/varia.png');
 import {useSettingsStore} from '../../settings/settingsStore';
 
 interface Props {
@@ -41,10 +42,7 @@ export function PairingStep1({onSearch, onSkip}: Props): React.JSX.Element {
 
         {/* Varia device illustration + Search button */}
         <View style={styles.illustrationContainer} testID="varia-illustration">
-          <View style={styles.variaBody}>
-            <View style={styles.variaLight} />
-          </View>
-          <Text style={[styles.variaLabel, isDark && styles.textDark]}>Varia Radar</Text>
+          <Image source={variaImage} style={styles.variaImage} resizeMode="contain" />
 
           <TouchableOpacity
             testID="search-button"
@@ -90,23 +88,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  variaBody: {
-    width: 80,
-    height: 140,
-    backgroundColor: '#374151',
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  variaLight: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#9CA3AF',
-  },
-  variaLabel: {
-    fontSize: 14,
-    color: '#374151',
+  variaImage: {
+    width: 320,
+    height: 300,
   },
   textDark: {color: '#F9FAFB'},
   skipLabel: {
