@@ -87,3 +87,8 @@ ios/assets/
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# Local build artifacts
+ios/build-device/
+Pixel_10*.log
+store-assets/regen/
