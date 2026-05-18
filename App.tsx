@@ -165,7 +165,6 @@ export default function App(): React.JSX.Element {
               {({navigation}) => (
                 <MainScreen
                   onSwipeLeft={() => navigation.navigate('Settings')}
-                  onTestAlert={() => ttsBackend.speak('Test alert. Radar is active.', () => {})}
                 />
               )}
             </Stack.Screen>

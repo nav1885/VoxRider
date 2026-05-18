@@ -25,10 +25,9 @@ const BANNER_AUTO_DISMISS_MS = 5000;
 
 interface Props {
   onSwipeLeft?: () => void;
-  onTestAlert?: () => void;
 }
 
-export function MainScreen({onSwipeLeft, onTestAlert}: Props): React.JSX.Element {
+export function MainScreen({onSwipeLeft}: Props): React.JSX.Element {
   const isDark = useColorScheme() === 'dark';
   const insets = useSafeAreaInsets();
 
@@ -210,16 +209,6 @@ export function MainScreen({onSwipeLeft, onTestAlert}: Props): React.JSX.Element
             </View>
           )}
 
-          {/* ── Test Alert button ── */}
-          {!debugMode && (
-            <TouchableOpacity
-              testID="test-alert-button"
-              style={styles.testAlertButton}
-              onPress={onTestAlert}>
-              <Text style={styles.testAlertText}>Test Alert</Text>
-            </TouchableOpacity>
-          )}
-
         </View>
 
       </View>
@@ -272,17 +261,6 @@ const styles = StyleSheet.create({
     padding: 6,
   },
   conflictText: {fontSize: 12, color: '#92400E'},
-
-  // ── Test Alert ──
-  testAlertButton: {
-    marginHorizontal: 20,
-    marginTop: 8,
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-    backgroundColor: '#374151',
-  },
-  testAlertText: {color: '#FFFFFF', fontSize: 16, fontWeight: '600'},
 
   // ── Debug ──
   debugSection: {

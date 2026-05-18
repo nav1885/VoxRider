@@ -21,13 +21,6 @@ describe('Main Screen', () => {
     await expect(element(by.id('connection-status'))).toBeVisible();
   });
 
-  // IOS-E2E-013 / UI-MAIN-004 — Test Alert button (REQ-VIS-003)
-  it('Test Alert button is visible and tappable', async () => {
-    await expect(element(by.id('test-alert-button'))).toBeVisible();
-    await element(by.id('test-alert-button')).tap();
-    await expect(element(by.id('test-alert-button'))).toBeVisible();
-  });
-
   // IOS-E2E-014 — Swipe left opens settings
   it('swipe left opens settings panel', async () => {
     await element(by.id('main-screen')).swipe('left', 'fast', 0.8);
