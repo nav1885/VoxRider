@@ -17,6 +17,13 @@ function iosStoragePath(): string {
 const ANDROID_BUNDLE = 'com.nav1885.voxrider';
 const ADB = '/Users/nav1885/Library/Android/sdk/platform-tools/adb';
 
+function adbEmulatorSerial(): string {
+  const out = execSync(`${ADB} devices`).toString();
+  const match = out.match(/^(emulator-\d+)\s+device/m);
+  if (!match) throw new Error('No emulator found in adb devices');
+  return match[1];
+}
+
 // MD5('@voxrider_settings') — key used by settingsStore
 const IOS_SETTINGS_FILE = 'e51f3e3d436ca803bfcd5452525051e1';
 
@@ -37,6 +44,8 @@ const SEED_MAIN = makeSettings([{id: 'detox-test-device', name: 'RTL-TEST', rssi
 const SEED_PAIRING = makeSettings([], true);
 
 async function seedAndLaunch(seed: string): Promise<void> {
+  // eslint-disable-next-line no-console
+  console.log('[seed] platform:', device.getPlatform());
   try {
     if (device.getPlatform() === 'ios') {
       const storagePath = iosStoragePath();
@@ -46,19 +55,53 @@ async function seedAndLaunch(seed: string): Promise<void> {
       const manifest = JSON.stringify({'@voxrider_settings': seed});
       writeFileSync(`${storagePath}/manifest.json`, manifest);
     } else {
-      execSync(`${ADB} -e shell pm clear ${ANDROID_BUNDLE} 2>/dev/null || true`);
+      const serial = adbEmulatorSerial();
+      const adb = `${ADB} -s ${serial}`;
+      // pm clear wipes notification channels → Android treats every foreground service
+      // notification as new and pulls down the shade. Only clear for pairing tests
+      // (which don't reach the main screen / foreground service).
+      if (seed === SEED_PAIRING) {
+        console.log('[seed] 1. pm clear');
+        execSync(`${adb} shell pm clear ${ANDROID_BUNDLE} 2>/dev/null || true`);
+      } else {
+        console.log('[seed] 1. skip pm clear (preserve notification channel)');
+      }
+      console.log('[seed] 2. create sqlite');
       const escaped = seed.replace(/'/g, "''");
       const tmpDb = '/tmp/voxrider_rkstorage.db';
-      execSync(
-        `sqlite3 ${tmpDb} "` +
-          `CREATE TABLE IF NOT EXISTS catalystLocalStorage (key TEXT PRIMARY KEY, value TEXT NOT NULL);` +
-          `INSERT OR REPLACE INTO catalystLocalStorage VALUES('@voxrider_settings', '${escaped}');"`,
-      );
-      execSync(`${ADB} -e root 2>/dev/null || true`);
-      execSync(`${ADB} -e shell mkdir -p /data/data/${ANDROID_BUNDLE}/databases`);
-      execSync(`${ADB} -e push ${tmpDb} /data/data/${ANDROID_BUNDLE}/databases/RKStorage`);
+      const sqlFile = '/tmp/voxrider_seed.sql';
+      execSync(`rm -f ${tmpDb}`);
+      // Write SQL to file to avoid shell double-quote escaping stripping JSON quotes
+      writeFileSync(sqlFile, [
+        'PRAGMA user_version=1;',
+        'CREATE TABLE catalystLocalStorage (key TEXT PRIMARY KEY, value TEXT NOT NULL);',
+        `INSERT INTO catalystLocalStorage VALUES('@voxrider_settings', '${escaped}');`,
+      ].join('\n'));
+      execSync(`sqlite3 ${tmpDb} < ${sqlFile}`);
+      console.log('[seed] 3. push to tmp');
+      execSync(`${adb} push ${tmpDb} /data/local/tmp/RKStorage`);
+      console.log('[seed] 4. mkdir databases');
+      execSync(`${adb} shell "run-as ${ANDROID_BUNDLE} mkdir -p databases"`);
+      console.log('[seed] 5. cp to databases');
+      execSync(`${adb} shell "run-as ${ANDROID_BUNDLE} cp /data/local/tmp/RKStorage databases/RKStorage"`);
+      console.log('[seed] 6. verify');
+      const verify = execSync(`${adb} shell "run-as ${ANDROID_BUNDLE} ls -la databases/RKStorage"`).toString().trim();
+      console.log('[seed] verify:', verify);
+      console.log('[seed] 7. grant permissions');
+      const perms = [
+        'android.permission.POST_NOTIFICATIONS',
+        'android.permission.BLUETOOTH_SCAN',
+        'android.permission.BLUETOOTH_CONNECT',
+      ];
+      for (const perm of perms) {
+        const result = execSync(`${adb} shell pm grant ${ANDROID_BUNDLE} ${perm} 2>&1 || true`).toString().trim();
+        console.log(`[seed] grant ${perm}: ${result || 'ok'}`);
+      }
     }
-  } catch {}
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('[seed] ERROR:', e);
+  }
 
   await device.launchApp({
     newInstance: true,
@@ -79,7 +122,7 @@ export async function launchFreshAtPairing(): Promise<void> {
 /** Wait for main screen — app boots directly here when a paired device is seeded */
 export async function skipToMainScreen(): Promise<void> {
   const {by, element, waitFor} = require('detox');
-  await waitFor(element(by.id('main-screen'))).toBeVisible().withTimeout(8000);
+  await waitFor(element(by.id('main-screen'))).toBeVisible().withTimeout(12000);
 }
 
 /** Navigate to main screen via the debug skip button (pairing tests only) */

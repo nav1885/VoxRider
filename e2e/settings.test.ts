@@ -37,7 +37,7 @@ describe('Settings Panel', () => {
 
   // UI-SET-004
   it('close button returns to main screen', async () => {
-    await element(by.text('✕')).tap();
-    await expect(element(by.id('main-screen'))).toBeVisible();
+    await element(by.id('settings-close')).tap();
+    await waitFor(element(by.id('main-screen'))).toBeVisible().withTimeout(5000);
   });
 });

@@ -61,6 +61,11 @@ module.exports = {
       type: 'android.emulator',
       device: {avdName: 'Pixel_10'},
     },
+    // Attach to an already-running emulator — we manage lifecycle, not Detox
+    'emulator.attached': {
+      type: 'android.attached',
+      device: {adbName: 'emulator-.*'},
+    },
   },
   configurations: {
     'ios.sim.release': {
@@ -69,6 +74,10 @@ module.exports = {
     },
     'android.emu.debug': {
       device: 'emulator',
+      app: 'android.debug',
+    },
+    'android.emu.attached': {
+      device: 'emulator.attached',
       app: 'android.debug',
     },
   },

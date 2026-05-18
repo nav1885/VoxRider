@@ -11,7 +11,7 @@
     "e2e:build:ios": "detox build --configuration ios.sim.release",
     "e2e:test:ios": "detox test --configuration ios.sim.release",
     "e2e:build:android": "ANDROID_SDK_ROOT=/Users/nav1885/Library/Android/sdk detox build --configuration android.emu.debug",
-    "e2e:test:android": "ANDROID_SDK_ROOT=/Users/nav1885/Library/Android/sdk detox test --configuration android.emu.debug"
+    "e2e:test:android": "scripts/run-android-tests.sh"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.1.2",
