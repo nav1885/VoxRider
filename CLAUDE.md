@@ -84,3 +84,60 @@ Threat count = (packet_length - 1) / 3
 - TTS watchdog: **6s** (utterances run up to ~3.5s at 0.65 speech rate)
 - TTS always finishes in full — no interruptions under any circumstance.
 - Level/speed included in the spoken message as the **max** seen during the debounce window.
+
+## iOS Build & Deploy
+
+### Simulator (for Detox tests)
+The test simulator is **iPhone 17 Pro** with UDID `174B7551-BA0C-46FE-AD1F-EF7AB543968A`. Build with:
+```bash
+npx react-native bundle --platform ios --dev false --entry-file index.js \
+  --bundle-output ios/main.jsbundle --assets-dest ios/assets
+
+xcodebuild -workspace ios/VoxRider.xcworkspace -scheme VoxRider \
+  -configuration Release -sdk iphonesimulator \
+  -destination 'platform=iOS Simulator,id=174B7551-BA0C-46FE-AD1F-EF7AB543968A' \
+  -derivedDataPath ios/build
+```
+
+### Physical device (development cert only)
+- Apple Development cert: `Apple Development: nhc002@gmail.com (MNCHP8DR5H)`
+- Distribution cert pending Apple Developer Program activation
+- Wife's iPhone UDID: `00008150-000C4C5C118A401C` (paired wirelessly)
+
+```bash
+xcodebuild -workspace ios/VoxRider.xcworkspace -scheme VoxRider \
+  -configuration Release -destination 'platform=iOS,id=<UDID>' \
+  -allowProvisioningUpdates -derivedDataPath ios/build-device
+
+xcrun devicectl device install app --device <UDID> \
+  ios/build-device/Build/Products/Release-iphoneos/VoxRider.app
+```
+
+After install, user must trust the dev cert: **Settings → General → VPN & Device Management → trust the developer**.
+
+## E2E Testing (Detox)
+
+### Running
+- iOS:     `npm run e2e:test:ios` (configuration `ios.sim.release`)
+- Android: `npm run e2e:test:android` (configuration `android.emu.debug`)
+
+The android script (`scripts/run-android-tests.sh`) manages emulator lifecycle: reuses a running `Pixel_10` AVD if present, otherwise boots one. Always clears Detox's stale device registry at `~/Library/Detox/device.registry.json` first.
+
+### State seeding (Android)
+- iOS uses `manifest.json` (RNCAsyncStorage stores small values inline)
+- Android uses a SQLite file pushed via `adb push` + `run-as cp` (`RKStorage` at `databases/RKStorage`)
+- **Critical:** SQLite seed file must set `PRAGMA user_version=1` — without it, `SQLiteOpenHelper` calls `onUpgrade` which drops the seeded table
+- **Critical:** Write SQL to a temp file, not a `-c` shell argument — shell double-quote wrapping strips JSON quotes silently
+- `launchFresh()` seeds a fake paired device → app boots straight to main screen
+- `launchFreshAtPairing()` seeds `debugMode: true` + no paired devices → app shows pairing screen with skip button visible
+- **Skip `pm clear` for main-screen tests** — it wipes the notification channel and Android pulls down the shade for every "new" foreground-service notification, obscuring main-screen
+
+### Detox device registry
+After any interrupted run, the stale serial in `~/Library/Detox/device.registry.json` will cause `adb: device 'emulator-XXXXX' not found` errors. The npm script clears it before every run.
+
+## App Icon
+
+Source: `store-assets/icon-512.png` (currently 512×512, gets upscaled to 1024 for iOS). For regeneration:
+- Use `/tmp/gen_icon.py` template — crops tight on the bike/radar art, removes the "VoxRider" wordmark (the OS shows the app name below the icon anyway), and emits all iOS AppIcon sizes + Android mipmap densities + foreground/round variants
+- Apple guideline: 1024×1024 App Store icon **must not** have alpha channel — script saves as RGB
+- Android adaptive icon foreground: 108dp canvas with art in inner 72dp safe zone (script handles)
