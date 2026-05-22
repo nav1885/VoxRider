@@ -20,7 +20,7 @@ const device2: DeviceInfo = {id: 'RTL11111', name: 'RTL11111', rssi: -75};
 describe('PairingStep1', () => {
   it('renders illustration, label, and progress', () => {
     const {getByTestId} = render(<PairingStep1 onSearch={jest.fn()} onSkip={jest.fn()} />, {wrapper: Wrapper});
-    expect(getByTestId('varia-illustration')).toBeTruthy();
+    expect(getByTestId('radar-illustration')).toBeTruthy();
     expect(getByTestId('search-button')).toBeTruthy();
     expect(getByTestId('step-progress').props.children).toBe('Step 1 of 2');
   });
@@ -34,7 +34,7 @@ describe('PairingStep1', () => {
 
   it('renders Varia illustration', () => {
     const {getByTestId} = render(<PairingStep1 onSearch={jest.fn()} onSkip={jest.fn()} />, {wrapper: Wrapper});
-    expect(getByTestId('varia-illustration')).toBeTruthy();
+    expect(getByTestId('radar-illustration')).toBeTruthy();
   });
 });
 

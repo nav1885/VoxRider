@@ -38,21 +38,21 @@ export const Strings = {
     `Warning: ${count === 1 ? '1 vehicle' : `${count} vehicles`} approaching, ${speedLabel} speed`,
 
   // Pairing flow
-  pairingStep1Title: 'Turn on your Varia',
-  pairingStep1Instruction: 'Turn on your Varia',
+  pairingStep1Title: 'Turn on your radar',
+  pairingStep1Instruction: 'Turn on your radar',
   pairingStep1Progress: 'Step 1 of 2',
   pairingStep1Button: 'Search',
 
-  pairingStep2Title: 'Select your Varia',
-  pairingStep2Searching: 'Searching for your Varia...',
+  pairingStep2Title: 'Select your radar',
+  pairingStep2Searching: 'Searching for your radar...',
   pairingStep2Progress: 'Step 2 of 2',
-  pairingStep2DeviceName: 'Varia Radar',
-  pairingStep2NotFound: "Varia not found — make sure it's turned on",
+  pairingStep2DeviceName: 'Cycling Radar',
+  pairingStep2NotFound: "Radar not found — make sure it's turned on",
   pairingStep2TryAgain: 'Try again',
   pairingStep2ConnectError: "Couldn't connect — tap to try again",
 
   // Conflict hint
-  conflictHint: 'Is another app connected to your Varia?',
+  conflictHint: 'Is another app connected to your radar?',
 
   // Battery optimization (Android)
   batteryBannerText: 'Battery restriction detected — radar may disconnect during rides',
@@ -62,7 +62,7 @@ export const Strings = {
   bluetoothPermissionBanner: 'Bluetooth permission required',
   bluetoothPermissionButton: 'Open Settings',
   bluetoothPermissionRationale:
-    "VoxRider needs Bluetooth access to connect to your Varia radar. On older Android versions this also requires location permission — your location is never stored or shared.",
+    "VoxRider needs Bluetooth access to connect to your cycling radar. On older Android versions this also requires location permission — your location is never stored or shared.",
 
   // Settings
   settingsVerbosity: 'Alert Verbosity',

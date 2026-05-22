@@ -41,6 +41,7 @@ export class NativeTTSBackend implements ITTSBackend {
     } else {
       await Tts.getInitStatus();
       await Tts.setIgnoreSilentSwitch('ignore');
+      await Tts.setDucking(true);
       await Tts.setDefaultRate(0.45);
       this.iosFinishHandler = () => {
         const cb = this.pendingOnFinished;

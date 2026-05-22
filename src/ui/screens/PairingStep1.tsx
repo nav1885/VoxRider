@@ -12,7 +12,7 @@ import {Strings} from '../../constants/strings';
 import {DebugWordmark} from '../components/DebugWordmark';
 
 const logo = require('../../assets/logo.png');
-const variaImage = require('../../assets/varia.png');
+const radarImage = require('../../assets/radar.png');
 import {useSettingsStore} from '../../settings/settingsStore';
 
 interface Props {
@@ -40,9 +40,9 @@ export function PairingStep1({onSearch, onSkip}: Props): React.JSX.Element {
         {/* Logo */}
         <Image source={logo} style={styles.logo} resizeMode="contain" />
 
-        {/* Varia device illustration + Search button */}
-        <View style={styles.illustrationContainer} testID="varia-illustration">
-          <Image source={variaImage} style={styles.variaImage} resizeMode="contain" />
+        {/* Radar illustration + Search button */}
+        <View style={styles.illustrationContainer} testID="radar-illustration">
+          <Image source={radarImage} style={styles.radarImage} resizeMode="contain" />
 
           <TouchableOpacity
             testID="search-button"
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  variaImage: {
+  radarImage: {
     width: 320,
     height: 300,
   },

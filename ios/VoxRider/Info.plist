@@ -34,15 +34,16 @@
 		<true/>
 	</dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>VoxRider needs Bluetooth to connect to your Garmin Varia radar.</string>
+	<string>VoxRider needs Bluetooth to connect to your cycling radar.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>VoxRider needs Bluetooth to connect to your Garmin Varia radar.</string>
+	<string>VoxRider needs Bluetooth to connect to your cycling radar.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
+		<string>audio</string>
 		<string>bluetooth-central</string>
 	</array>
 	<key>UILaunchStoryboardName</key>
