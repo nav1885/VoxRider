@@ -21,22 +21,17 @@ export interface RadarDeviceProfile {
   radarCharUuid: string;
 }
 
-// BLE protocol reference:
-// https://forums.garmin.com/developer/connect-iq/f/discussion/240452/bluetooth-profile-for-garmin-varia-rtl515
-export const VARIA_RTL515: RadarDeviceProfile = {
-  name: 'Garmin Varia RTL515',
+export const RTL_RADAR: RadarDeviceProfile = {
+  name: 'Cycling Radar',
   namePrefix: 'RTL',
   maxRangeMetres: 140,
-  bleTickMs: 1000, // 1 Hz — confirmed by Garmin dev forum and multiple independent implementations
+  bleTickMs: 1000,
   serviceUuid: '6A4E3200-667B-11E3-949A-0800200C9A66',
   radarCharUuid: '6A4E3203-667B-11E3-949A-0800200C9A66',
 };
 
-// Add future devices here, e.g.:
-// export const VARIA_RVR315: RadarDeviceProfile = { ... };
-
 /** All supported profiles — used for scan filtering */
-export const SUPPORTED_DEVICES: RadarDeviceProfile[] = [VARIA_RTL515];
+export const SUPPORTED_DEVICES: RadarDeviceProfile[] = [RTL_RADAR];
 
 /** Active profile — change this to switch the target device */
-export const ACTIVE_DEVICE = VARIA_RTL515;
+export const ACTIVE_DEVICE = RTL_RADAR;
