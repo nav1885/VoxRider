@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {Appearance, StatusBar, useColorScheme, NativeModules, Platform, PermissionsAndroid} from 'react-native';
+import {Appearance, StatusBar, useColorScheme, NativeModules, Platform, PermissionsAndroid, Vibration} from 'react-native';
 
 Appearance.setColorScheme('dark');
 import {SafeAreaProvider} from 'react-native-safe-area-context';
@@ -48,6 +48,13 @@ const ttsEngine = new TTSEngine(
   useSettingsStore.getState().verbosity,
   msg => useDebugStore.getState().setLastAnnouncement(msg),
 );
+
+// Safety net: if the native TTS engine is wedged and can't speak even after
+// rebuilding itself, fall back to a distinct vibration burst so the rider still
+// gets *some* alert instead of silence on the road.
+ttsEngine.setOnFailure(() => {
+  Vibration.vibrate([0, 400, 150, 400, 150, 400]);
+});
 
 // Keep verbosity in sync when user changes it in Settings
 useSettingsStore.subscribe(state => {

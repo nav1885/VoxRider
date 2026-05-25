@@ -7,7 +7,14 @@ import {useDebugStore} from '../debug/debugStore';
 const WATCHDOG_MS = 6000;
 
 export interface ITTSBackend {
-  speak(utterance: string, onFinished: () => void): void;
+  /**
+   * Speak an utterance.
+   * @param onFinished called when the utterance completes naturally.
+   * @param onFailed   called when the engine could not speak at all (e.g. the
+   *   native TTS service was killed and recovery failed). Optional — backends
+   *   that cannot fail need not call it.
+   */
+  speak(utterance: string, onFinished: () => void, onFailed?: () => void): void;
   stop(): void;
 }
 
@@ -28,6 +35,7 @@ export class TTSEngine {
   private backend: ITTSBackend;
   private alertEngine: AlertEngine;
   private onSpeak: ((message: string) => void) | null;
+  private onFailure: (() => void) | null = null;
 
   constructor(
     backend: ITTSBackend,
@@ -45,6 +53,15 @@ export class TTSEngine {
 
   setVerbosity(verbosity: AlertVerbosity): void {
     this.verbosity = verbosity;
+  }
+
+  /**
+   * Register a non-audio fallback fired when the TTS backend cannot speak at
+   * all (e.g. the native engine was killed and self-recovery failed). Used to
+   * raise a tactile cue so a wedged engine never leaves the rider with no alert.
+   */
+  setOnFailure(cb: () => void): void {
+    this.onFailure = cb;
   }
 
   /** Called by BLE layer with latest threats on every packet */
@@ -85,9 +102,11 @@ export class TTSEngine {
     }
     this.speaking = true;
     this._startWatchdog();
-    this.backend.speak(message, () => {
-      this._onFinished();
-    });
+    this.backend.speak(
+      message,
+      () => this._onFinished(),
+      () => this._onSpeakFailed(),
+    );
   }
 
   /** Called when Android audio focus is lost — treat as implicit speech end */
@@ -105,9 +124,27 @@ export class TTSEngine {
     this._startWatchdog();
     this.onSpeak?.(message);
 
-    this.backend.speak(message, () => {
-      this._onFinished();
-    });
+    this.backend.speak(
+      message,
+      () => this._onFinished(),
+      () => this._onSpeakFailed(),
+    );
+  }
+
+  /**
+   * The backend could not speak at all (native engine killed, recovery failed).
+   * Release the speaking lock so the next BLE packet can re-announce, and raise
+   * the non-audio fallback. We deliberately do NOT re-evaluate here: re-speaking
+   * immediately on the same broken backend would spin a tight failure loop.
+   */
+  private _onSpeakFailed(): void {
+    if (!this.speaking) {
+      return; // watchdog/focus-loss already reset us
+    }
+    this._clearWatchdog();
+    this.speaking = false;
+    this._log('SPEAK FAILED — engine could not speak; raising fallback cue');
+    this.onFailure?.();
   }
 
   private _onFinished(): void {

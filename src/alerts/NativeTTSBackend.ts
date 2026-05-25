@@ -23,16 +23,30 @@ export class NativeTTSBackend implements ITTSBackend {
   private eventSubscription: ReturnType<NativeEventEmitter['addListener']> | null = null;
   private iosFinishHandler: (() => void) | null = null;
   private pendingOnFinished: (() => void) | null = null;
+  private pendingOnFailed: (() => void) | null = null;
 
   async initialize(): Promise<void> {
     if (Platform.OS === 'android' && VoxTTS) {
+      // Drop any prior subscription first — initialize() may be called more
+      // than once (e.g. across reconnects), and stacking listeners makes every
+      // native event fire N times.
+      this.eventSubscription?.remove();
       const emitter = new NativeEventEmitter(VoxTTS);
       this.eventSubscription = emitter.addListener('VoxTTSEvent', (msg: string) => {
         useDebugStore.getState().appendTTSLog(`nat: ${msg}`);
         // onDone = utterance finished naturally → snapshot-on-completion
         if (msg.startsWith('onDone')) {
+          this.pendingOnFailed = null;
           const cb = this.pendingOnFinished;
           this.pendingOnFinished = null;
+          cb?.();
+        } else if (msg.startsWith('speakFailed')) {
+          // Native engine could not speak even after rebuilding itself.
+          // Release the engine immediately (don't wait out the watchdog) and
+          // let the caller raise a non-audio cue.
+          this.pendingOnFinished = null;
+          const cb = this.pendingOnFailed;
+          this.pendingOnFailed = null;
           cb?.();
         }
         // onStop = interrupted (QUEUE_FLUSH or explicit stop) → ignore;
@@ -60,8 +74,9 @@ export class NativeTTSBackend implements ITTSBackend {
     }
   }
 
-  speak(utterance: string, onFinished: () => void): void {
+  speak(utterance: string, onFinished: () => void, onFailed?: () => void): void {
     this.pendingOnFinished = onFinished;
+    this.pendingOnFailed = onFailed ?? null;
     if (Platform.OS === 'android') {
       VoxTTS?.speak(utterance);
     } else {
@@ -76,6 +91,7 @@ export class NativeTTSBackend implements ITTSBackend {
     // Clear callback before stopping — interrupted utterances don't trigger
     // snapshot-on-completion; the caller (TTSEngine) manages state directly.
     this.pendingOnFinished = null;
+    this.pendingOnFailed = null;
     if (Platform.OS === 'android') {
       VoxTTS?.stop();
     }

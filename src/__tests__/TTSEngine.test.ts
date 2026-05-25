@@ -8,23 +8,37 @@ const connected = ConnectionStatus.Connected;
 const medium = (): Threat => ({speed: 10, distance: 80, level: ThreatLevel.Medium});
 const high = (): Threat => ({speed: 25, distance: 40, level: ThreatLevel.High});
 
-function makeBackend(): ITTSBackend & {lastUtterance: string; stopCalled: boolean; triggerFinished: () => void} {
+function makeBackend(): ITTSBackend & {
+  lastUtterance: string;
+  stopCalled: boolean;
+  triggerFinished: () => void;
+  triggerFailed: () => void;
+} {
   let _onFinished: (() => void) | null = null;
+  let _onFailed: (() => void) | null = null;
   return {
     lastUtterance: '',
     stopCalled: false,
-    speak(utterance, onFinished) {
+    speak(utterance, onFinished, onFailed) {
       this.lastUtterance = utterance;
       _onFinished = onFinished;
+      _onFailed = onFailed ?? null;
     },
     stop() {
       this.stopCalled = true;
       _onFinished = null;
+      _onFailed = null;
     },
     triggerFinished() {
       if (_onFinished) {
         _onFinished();
         _onFinished = null;
+      }
+    },
+    triggerFailed() {
+      if (_onFailed) {
+        _onFailed();
+        _onFailed = null;
       }
     },
   };
@@ -140,6 +154,57 @@ describe('TTSEngine', () => {
 
       engine.handleTrigger({count: 2, maxLevel: ThreatLevel.Medium, isClear: false});
       expect(backend.lastUtterance).toBe('2 vehicles, medium speed');
+    });
+  });
+
+  describe('backend speak failure (engine wedged)', () => {
+    it('fires the onFailure fallback when the backend reports failure', () => {
+      const onFailure = jest.fn();
+      engine.setOnFailure(onFailure);
+
+      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isClear: false});
+      backend.triggerFailed();
+
+      expect(onFailure).toHaveBeenCalledTimes(1);
+    });
+
+    it('releases the speaking lock so the next trigger can speak', () => {
+      engine.setOnFailure(() => {});
+      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isClear: false});
+      backend.triggerFailed();
+
+      engine.handleTrigger({count: 2, maxLevel: ThreatLevel.Medium, isClear: false});
+      expect(backend.lastUtterance).toBe('2 vehicles, medium speed');
+    });
+
+    it('does not immediately re-speak on failure (avoids a tight failure loop)', () => {
+      engine.setOnFailure(() => {});
+      engine.updateState([medium()], connected);
+      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isClear: false});
+      const utteranceBefore = backend.lastUtterance;
+
+      backend.triggerFailed();
+      jest.advanceTimersByTime(1251); // no snapshot re-evaluation should have been scheduled
+
+      expect(backend.lastUtterance).toBe(utteranceBefore);
+    });
+
+    it('cancels the watchdog when failure fires (no late reset throws)', () => {
+      engine.setOnFailure(() => {});
+      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isClear: false});
+      backend.triggerFailed();
+      expect(() => jest.advanceTimersByTime(10001)).not.toThrow();
+    });
+
+    it('ignores failure callback if watchdog already reset speaking', () => {
+      const onFailure = jest.fn();
+      engine.setOnFailure(onFailure);
+      engine.handleTrigger({count: 1, maxLevel: ThreatLevel.Medium, isClear: false});
+
+      jest.advanceTimersByTime(10001); // watchdog resets speaking first
+      backend.triggerFailed(); // late failure event
+
+      expect(onFailure).not.toHaveBeenCalled();
     });
   });
 });
