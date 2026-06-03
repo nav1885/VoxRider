@@ -1,0 +1,5 @@
+# Non-secret identifiers only. Secrets/key paths live in fastlane/.env (gitignored).
+app_identifier("com.voxrider")                       # iOS bundle id
+apple_id(ENV["FASTLANE_APPLE_ID"] || "nhc002@gmail.com")
+team_id("WKVSGRCJD9")                                # Apple Developer team
+# Android package (com.nav1885.voxrider) is set per-lane in the Fastfile.

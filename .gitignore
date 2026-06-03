@@ -53,6 +53,12 @@ yarn-error.log
 **/fastlane/Preview.html
 **/fastlane/screenshots
 **/fastlane/test_output
+**/fastlane/.env
+
+# signing secrets — never commit (the key FILES are the secrets)
+*.p8
+*-play-sa.json
+**/play-service-account*.json
 
 # Bundle artifact
 *.jsbundle

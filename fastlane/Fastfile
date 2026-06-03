@@ -1,0 +1,104 @@
+# Fastfile — VoxRider local release lanes (run from repo root, Homebrew fastlane)
+#
+#   fastlane ios_release       # archive (distribution) -> upload to TestFlight
+#   fastlane android_release   # signed AAB -> Play "internal" track (draft)
+#
+# Mirrors the local, key-file-auth model already used for iOS:
+#   - iOS  : Apple Distribution cert (login keychain) + App Store Connect API key (.p8)
+#   - Play : release keystore + Google Play service-account JSON
+# Nothing sensitive is committed. Config lives in fastlane/.env (gitignored;
+# copy fastlane/.env.example). Both lanes are GATED so nothing goes public:
+#   - ios_release uploads to TestFlight only (never submits for App Store review)
+#   - android_release uploads to the internal track as a DRAFT (won't release until you promote)
+
+ROOT = File.expand_path("..", __dir__)
+
+def env!(name, hint)
+  v = ENV[name]
+  UI.user_error!("Missing #{name} — set it in fastlane/.env\n  #{hint}") if v.nil? || v.strip.empty?
+  v.strip
+end
+
+def file!(path, hint)
+  abs = File.expand_path(path)
+  UI.user_error!("Not found: #{abs}\n  #{hint}") unless File.exist?(abs)
+  abs
+end
+
+desc "Build VoxRider (distribution) and upload to TestFlight"
+lane :ios_release do
+    key_id    = env!("ASC_KEY_ID", "App Store Connect API key ID")
+    issuer_id = env!("ASC_ISSUER_ID", "App Store Connect issuer ID")
+    key_path  = file!(env!("ASC_KEY_FILEPATH", "Path to AuthKey_*.p8"),
+                      "Download the .p8 from App Store Connect > Users and Access > Integrations.")
+
+    api_key = app_store_connect_api_key(
+      key_id: key_id, issuer_id: issuer_id, key_filepath: key_path, in_house: false
+    )
+
+    # Auth flags replicate the working manual xcodebuild flow (provisioning via the API key).
+    auth = "-authenticationKeyPath #{key_path.shellescape} " \
+           "-authenticationKeyID #{key_id} -authenticationKeyIssuerID #{issuer_id}"
+
+    build_app(
+      workspace: "#{ROOT}/ios/VoxRider.xcworkspace",
+      scheme: "VoxRider",
+      configuration: "Release",
+      archive_path: "#{ROOT}/ios/build/VoxRider.xcarchive",
+      output_directory: "#{ROOT}/ios/build/fastlane",
+      output_name: "VoxRider.ipa",
+      export_method: "app-store",
+      xcargs: "-allowProvisioningUpdates #{auth} DEVELOPMENT_TEAM=WKVSGRCJD9 CODE_SIGN_STYLE=Automatic",
+      export_xcargs: "-allowProvisioningUpdates #{auth}",
+      export_options: { method: "app-store", signingStyle: "automatic", teamID: "WKVSGRCJD9" }
+    )
+
+    # TestFlight only — upload_to_testflight does NOT submit to App Store review.
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: "#{ROOT}/ios/build/fastlane/VoxRider.ipa",
+      skip_waiting_for_build_processing: true
+    )
+    UI.success("iOS build is in TestFlight. Submit for App Store review manually when ready.")
+  end
+
+desc "Build signed AAB and upload to Play internal track (draft)"
+lane :android_release do
+    # GATE 1: refuse to build without the real keystore — prevents a silent debug-signed upload.
+    file!("#{ROOT}/android/app/voxrider-release.keystore",
+          "Restore the release keystore (or do a Play upload-key reset). Without it Gradle debug-signs and Play rejects it.")
+    file!("#{ROOT}/android/keystore.properties",
+          "Create android/keystore.properties (storeFile/storePassword/keyAlias/keyPassword).")
+
+    json_key = file!(env!("PLAY_JSON_KEY_FILEPATH", "Path to Google Play service-account JSON"),
+                     "Create the service account in Google Cloud, grant access in Play Console > Users & permissions.")
+
+    # JS must be pre-bundled (never Metro) per CLAUDE.md.
+    sh("cd #{ROOT.shellescape} && npx react-native bundle --platform android --dev false --entry-file index.js " \
+       "--bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res")
+
+    gradle(project_dir: "#{ROOT}/android", task: "bundle", build_type: "Release", flags: "--no-daemon")
+
+    aab = "#{ROOT}/android/app/build/outputs/bundle/release/app-release.aab"
+
+    # GATE 2 (best-effort): hard-stop if the AAB is debug-signed (the exact failure we hit before).
+    begin
+      owner = sh("keytool -printcert -jarfile #{aab.shellescape} 2>/dev/null | grep -i Owner | head -1", log: false).to_s
+      UI.user_error!("AAB is DEBUG-signed (#{owner.strip}) — keystore not picked up. Aborting before upload.") if owner.include?("Android Debug")
+    rescue => e
+      UI.important("Skipping debug-signature check (keytool unavailable): #{e.message}")
+    end
+
+    upload_to_play_store(
+      package_name: "com.nav1885.voxrider",
+      aab: aab,
+      track: "internal",
+      release_status: "draft",   # uploaded but not released to testers until you promote in Console
+      json_key: json_key,
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+    UI.success("Signed AAB uploaded to Play 'internal' as DRAFT. Promote it in Play Console when ready.")
+end
