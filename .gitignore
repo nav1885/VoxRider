@@ -99,3 +99,4 @@ ios/build-device/
 ios/build-sim/
 Pixel_10*.log
 store-assets/regen/
+**/fastlane/README.md
