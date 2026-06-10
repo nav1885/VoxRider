@@ -6,7 +6,9 @@
 
 VoxRider connects to your **Garmin Varia RTL515** bike radar over Bluetooth and speaks traffic alerts straight into your earbuds — *"2 vehicles, high speed"*, *"Clear"* — so you keep your eyes on the road and your hands on the bars. No glancing at a tiny radar light. Hands-free, eyes-free situational awareness for road cyclists.
 
-📱 Live on the **App Store** (iOS) · 🤖 Android build available here (Play Store release in progress)
+<a href="https://apps.apple.com/app/voxrider/id6771203798"><img alt="Download on the App Store" src="https://img.shields.io/badge/Download_on_the-App_Store-0D96F6?style=for-the-badge&logo=apple&logoColor=white" height="42"></a>
+
+🤖 Android — Google Play release in progress (build from source below)
 
 </div>
 
@@ -86,18 +88,14 @@ npm run android
 npm test
 ```
 
-128 tests across 12 suites:
-- BLE packet parser (18 tests)
-- Alert engine — trigger logic, throttle, debounce (19 tests)
-- TTS engine — snapshot-on-completion, watchdog, escalation (10 tests)
-- Connection alert engine — disconnect/reconnect/backoff (12 tests)
-- Alert message builder — verbosity levels (9 tests)
-- End-to-end alert pipeline integration (5 tests)
-- MainScreen component (13 tests)
-- SettingsPanel component (10 tests)
-- PairingStep1 + PairingStep2 screens (10 tests)
-- Bluetooth permissions hook + banner (13 tests)
-- App launch routing (1 test)
+173 unit tests across 14 suites — BLE packet parser, alert engine (trigger/throttle/debounce), TTS engine (snapshot-on-completion, watchdog, escalation), connection engine (disconnect/reconnect/backoff), alert message builder, the in-process end-to-end alert pipeline, and every UI screen, hook, and permission banner.
+
+End-to-end UI tests use **Detox** and live in `e2e/` — they need the Detox runner, so run them separately:
+
+```sh
+npm run e2e:test:ios       # configuration ios.sim.release
+npm run e2e:test:android   # configuration android.emu.debug
+```
 
 ---
 
@@ -124,7 +122,7 @@ Key files:
 | `src/ui/screens/SettingsPanel.tsx` | Verbosity / units / paired devices |
 | `src/ui/screens/PairingStep1.tsx` | Turn on Varia — step 1 of pairing |
 | `src/ui/screens/PairingStep2.tsx` | Scan + connect — step 2 of pairing |
-| `android/app/src/main/java/com/voxrider/RadarService.kt` | Android foreground service |
+| `android/app/src/main/java/com/nav1885/voxrider/RadarService.kt` | Android foreground service |
 
 ---
 
@@ -146,7 +144,7 @@ Garmin Varia RTL515 uses a reverse-engineered protocol (community research via p
 - **Battery:** Standard BLE Battery Service `0x180F` / `0x2A19`
 - **Packet format:** 1-byte header (`rolling_counter:4 | 0x2:4` — the low nibble is *always* `0x2`, **not** a threat count) + 3 bytes/threat: `vehicleId` uint8, `distance` uint8 m, `speed` uint8 km/h (bits 7–6 = threat level). Threat count = `(packet_length − 1) / 3`.
 
-> **Distribution note:** Using a reverse-engineered protocol carries App Store / Play Store risk. v1 strategy: Android APK sideload / iOS personal dev cert / open-source GitHub.
+> **Distribution note:** The reverse-engineered radar profile is kept entirely in code/docs — third-party brand names never appear in the user-facing UI (generic "radar" terminology only). VoxRider is live on the iOS App Store under this approach; the Android Play Store release is in progress.
 
 ---
 
@@ -161,4 +159,4 @@ Hold the Varia power button for 6 seconds to enter demo mode — simulates threa
 - React Native: 0.84.1
 - Node.js: ≥ 18.0.0
 - Android minSdk: 26 (Android 8.0)
-- iOS minimum: 15.0
+- iOS minimum: 15.1
