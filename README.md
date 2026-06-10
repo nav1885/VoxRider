@@ -1,15 +1,46 @@
+<div align="center">
+
 # VoxRider
 
-React Native app that connects to a Garmin Varia RTL515 bike radar via Bluetooth and delivers spoken TTS voice alerts through your earbuds — hands-free, eyes-free situational awareness for road cyclists.
+**Hear the traffic behind you.**
+
+VoxRider connects to your **Garmin Varia RTL515** bike radar over Bluetooth and speaks traffic alerts straight into your earbuds — *"2 vehicles, high speed"*, *"Clear"* — so you keep your eyes on the road and your hands on the bars. No glancing at a tiny radar light. Hands-free, eyes-free situational awareness for road cyclists.
+
+📱 Live on the **App Store** (iOS) · 🤖 Android build available here (Play Store release in progress)
+
+</div>
+
+---
+
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="20%"><img src="docs/screenshots/01-pair-step1.png" alt="Pairing — turn on your Varia"></td>
+    <td align="center" width="20%"><img src="docs/screenshots/02-pair-step2.png" alt="Pairing — scanning for your radar"></td>
+    <td align="center" width="20%"><img src="docs/screenshots/03-main.png" alt="Main screen — monitoring traffic"></td>
+    <td align="center" width="20%"><img src="docs/screenshots/04-alert.png" alt="Vehicle approaching alert"></td>
+    <td align="center" width="20%"><img src="docs/screenshots/05-settings.png" alt="Settings — verbosity and units"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Pair in two steps</b><br>Turn on your Varia, tap Search</sub></td>
+    <td align="center"><sub><b>Auto-discovery</b><br>Finds your radar over BLE</sub></td>
+    <td align="center"><sub><b>Live road view</b><br>Vehicles shown as they close in</sub></td>
+    <td align="center"><sub><b>Spoken warnings</b><br>Banner + TTS on every threat</sub></td>
+    <td align="center"><sub><b>Tune your alerts</b><br>Verbosity, units, devices</sub></td>
+  </tr>
+</table>
 
 ---
 
 ## What it does
 
-- Scans for and pairs with a Garmin Varia RTL515 radar
-- Announces threats via TTS: *"2 vehicles, high speed"* / *"Clear"*
-- Auto-reconnects on disconnect, announces *"Radar disconnected"* / *"Radar reconnected"*
-- Works in the background (screen locked, app backgrounded) via Android foreground service + iOS background BLE
+- **Pairs with your Garmin Varia RTL515** radar in two quick steps — no Garmin account needed.
+- **Speaks every threat aloud** through your earbuds or speaker: *"2 vehicles, high speed"*, *"1 vehicle approaching"*, *"Clear"*. Audio ducks your music so the alert always comes through, then resumes.
+- **Shows a live road view** — approaching vehicles appear on a virtual lane and turn red as they close in, with the alert text mirrored in an on-screen banner.
+- **Stays alert in your pocket** — keeps working with the screen locked or the app in the background (Android foreground service + iOS background BLE).
+- **Auto-reconnects** if the radar drops out, and tells you: *"Radar disconnected"* / *"Radar reconnected"*.
+- **Your way** — pick alert verbosity (Detailed / Balanced / Minimal) and units (Imperial / Metric).
 
 ---
 
@@ -97,27 +128,12 @@ Key files:
 
 ---
 
-## Switching from Mock to Real BLE
+## Mock BLE for development
 
-The app currently uses `MockBLEManager` in `App.tsx`. To use real BLE once native tools are available:
+`App.tsx` wires up the real stack (`RealBLEManager` + `NativeTTSBackend`) used in shipping builds. For development or testing without a physical radar, swap in the test doubles:
 
-1. In `App.tsx`, replace:
-   ```ts
-   import {MockBLEManager} from './src/ble/MockBLEManager';
-   const bleManager = new MockBLEManager();
-   ```
-   with:
-   ```ts
-   import {RealBLEManager} from './src/ble/RealBLEManager';
-   const bleManager = new RealBLEManager();
-   ```
-
-2. Replace `NoOpTTSBackend` with `NativeTTSBackend`:
-   ```ts
-   import {NativeTTSBackend} from './src/alerts/NativeTTSBackend';
-   const ttsBackend = new NativeTTSBackend();
-   await ttsBackend.initialize(); // call this once on app start
-   ```
+- `MockBLEManager` (`src/ble/MockBLEManager.ts`) — replays canned threat sequences; used in all JS tests.
+- `NoOpTTSBackend` (`src/alerts/NoOpTTSBackend.ts`) — logs utterances to the console instead of speaking.
 
 ---
 
@@ -126,10 +142,9 @@ The app currently uses `MockBLEManager` in `App.tsx`. To use real BLE once nativ
 Garmin Varia RTL515 uses a reverse-engineered protocol (community research via pycycling/harbour-tacho):
 
 - **Service UUID:** `6A4E3200-667B-11E3-949A-0800200C9A66`
-- **Radar characteristic:** `6A4E3203-667B-11E3-949A-0800200C9A66`
+- **Radar characteristic:** `6A4E3203-667B-11E3-949A-0800200C9A66` (1 Hz, 140 m range)
 - **Battery:** Standard BLE Battery Service `0x180F` / `0x2A19`
-- **Packet format:** 1-byte header (`seq_id:4 | count:4`) + 3 bytes/threat (speed uint8 m/s, distance uint8 m, flags bits 7–6 = threat level)
-- **Split packets:** >6 threats split across two packets, reassembled by shared sequence ID (500ms timeout)
+- **Packet format:** 1-byte header (`rolling_counter:4 | 0x2:4` — the low nibble is *always* `0x2`, **not** a threat count) + 3 bytes/threat: `vehicleId` uint8, `distance` uint8 m, `speed` uint8 km/h (bits 7–6 = threat level). Threat count = `(packet_length − 1) / 3`.
 
 > **Distribution note:** Using a reverse-engineered protocol carries App Store / Play Store risk. v1 strategy: Android APK sideload / iOS personal dev cert / open-source GitHub.
 
